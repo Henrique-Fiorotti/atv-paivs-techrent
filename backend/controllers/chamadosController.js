@@ -13,14 +13,14 @@ const db = require('../config/database');
 //   admin/técnico -> todos os chamados
 //   cliente       -> apenas os seus (WHERE cliente_id = req.usuario.id)
 const listar = async (req, res) => {
-  // TODO
-  res.json({ mensagem: 'listar chamados - não implementado' });
+  const usuario = await UserModel.encontrarPorId(req.usuario.id);
 };
 
 // GET /chamados/:id - retorna um chamado pelo ID
 const buscarPorId = async (req, res) => {
+  
   // TODO
-  res.json({ mensagem: 'buscarPorId - não implementado' });
+  res.status(200).json({ mensagem: `buscarPorId - ${db.query('SELECT * FROM chamados WHERE id = ?', [req.params.id])}` });
 };
 
 // POST /chamados - abre um novo chamado (cliente/admin)

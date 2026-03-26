@@ -23,4 +23,4 @@ const pool = mysql.createPool({
   typeCast: true,
 });
 
-module.exports = pool;
+module.exports = { pool, query };

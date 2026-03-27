@@ -23,4 +23,14 @@ const pool = mysql.createPool({
   typeCast: true,
 });
 
+async function query(sql, params = []) {
+  try {
+    const [results] = await pool.execute(sql, params);
+    return results;
+  } catch (error) {
+    console.error('Erro na query:', error.message);
+    throw error;
+  }
+};
+
 module.exports = { pool, query };

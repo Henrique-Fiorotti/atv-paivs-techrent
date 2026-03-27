@@ -27,7 +27,10 @@ const registro = async (req, res) => {
       return res.status(400).json({ message: 'Email já existe' });
     }
 
-    const criarUsuario = await UserModel.criar(nome, email, senha, nivel_acesso)
+    // Hash da senha
+    const senhaHash = await bcrypt.hash(senha, 10);
+
+    const criarUsuario = await UserModel.criar(nome, email, senhaHash, nivel_acesso)
     if (criarUsuario) {
       return res.status(201).json({ message: 'Usuário criado com sucesso' });
     }
@@ -41,7 +44,40 @@ const registro = async (req, res) => {
 // POST /auth/login - autentica e retorna JWT
 const login = async (req, res) => {
   // TODO
-  res.json({ message: 'login - não implementado' });
+  const { email, senha } = req.body
+    try {
+    const usuario = await UserModel.encontrarPorEmail(email);
+
+    if (!usuario) {
+      return res.status(404).json({ message: 'Usuário não encontrado' });
+    }
+
+    const senhaValida = await bcrypt.compare(senha, usuario.senha);
+
+    if (!senhaValida) {
+      return res.status(401).json({ message: 'Senha inválida' });
+    }
+
+    const token = jwt.sign(
+      {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        nivel_acesso: usuario.nivel_acesso
+      },
+      'seu_segredo_aqui',
+      { expiresIn: '1h' }
+    );
+
+    return res.status(200).json({
+      message: 'Login realizado com sucesso',
+      token
+    });
+
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ message: error.message });
+  }
 };
 
 module.exports = { registro, login };

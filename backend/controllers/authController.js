@@ -21,22 +21,27 @@ const registro = async (req, res) => {
   const { nome, email, senha, nivel_acesso } = req.body
 
   try {
+
     const emailExiste = await UserModel.encontrarPorEmail(email);
-    if(!emailExiste){
-      res.status(400).json({ mensagem: 'Email já existe' });
+    if (emailExiste) {
+      return res.status(400).json({ message: 'Email já existe' });
     }
 
-    const criarUsuario = await UserModel.criarUsuario(nome, email, senha, nivel_acesso)
+    const criarUsuario = await UserModel.criar(nome, email, senha, nivel_acesso)
+    if (criarUsuario) {
+      return res.status(201).json({ message: 'Usuário criado com sucesso' });
+    }
 
   } catch (error) {
-    
+    console.log(error);
+    return res.status(500).json({ message: 'Erro interno do servidor' });
   }
 };
 
 // POST /auth/login - autentica e retorna JWT
 const login = async (req, res) => {
   // TODO
-  res.json({ mensagem: 'login - não implementado' });
+  res.json({ message: 'login - não implementado' });
 };
 
 module.exports = { registro, login };

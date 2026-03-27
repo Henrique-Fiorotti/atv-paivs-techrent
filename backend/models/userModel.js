@@ -7,13 +7,13 @@ class UserModel {
     static async encontrarPorId(id){
         const sql = `SELECT * from usuarios WHERE id = ?`;
         const result = await query(sql, [id]);
-        return result[0] || null; // Retorna usuário
+        return result[0] || null; // Retorna usuário ou Null
     }
 
     static async encontrarPorEmail(email){
         const sql = `SELECT * from usuarios WHERE email = ?`;
         const result = await query(sql, [email]);
-        return result[0] || null; // Retorna usuário
+        return result[0] || null; // Retorna usuário ou Null
     }
 
     static async criar(nome, email, senha, nivel_acesso) {

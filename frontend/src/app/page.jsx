@@ -11,6 +11,10 @@ const estadoInicialRegistro = {
   nivel_acesso: "cliente",
 };
 
+const cardClass = "rounded-2xl border border-white/40 bg-white/80 p-5 shadow-sm backdrop-blur";
+const inputClass = "w-full rounded-xl border border-zinc-200 bg-white/90 px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100";
+const btnClass = "rounded-xl px-4 py-2 text-sm font-medium transition active:scale-[0.99]";
+
 export default function Home() {
   const [authModo, setAuthModo] = useState("login");
   const [registro, setRegistro] = useState(estadoInicialRegistro);
@@ -58,16 +62,32 @@ export default function Home() {
   }, []);
 
   async function request(path, options = {}) {
-    const response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: {
-        ...headers,
-        ...(options.headers || {}),
-      },
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message || data.mensagem || "Erro na requisição");
-    return data;
+    try {
+      const response = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers: {
+          ...headers,
+          ...(options.headers || {}),
+        },
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      const isJson = contentType.includes("application/json");
+      const data = isJson ? await response.json() : null;
+
+      if (!response.ok) {
+        throw new Error(data?.message || data?.mensagem || "Erro na requisição");
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(
+          "Falha de conexão com a API. Verifique CORS, URL do backend e se o servidor está ativo."
+        );
+      }
+      throw error;
+    }
   }
 
   async function handleRegistro(e) {
@@ -228,139 +248,156 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 p-6">
-      <h1 className="text-3xl font-bold">TechRent - Front-end MVP</h1>
-      <p className="text-sm text-zinc-600">API: {API_URL}</p>
-
-      {!usuario ? (
-        <section className="grid gap-4 rounded border border-zinc-200 p-4">
-          <div className="flex gap-2">
-            <button className="rounded bg-zinc-900 px-3 py-2 text-white" onClick={() => setAuthModo("login")}>
-              Login
-            </button>
-            <button className="rounded border px-3 py-2" onClick={() => setAuthModo("registro")}>
-              Registro
-            </button>
+    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 px-4 py-8 text-zinc-900">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <header className={`${cardClass} flex flex-wrap items-center justify-between gap-3`}>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">TechRent</h1>
+            <p className="text-sm text-zinc-600">Plataforma de chamados, manutenção e gestão de ativos</p>
           </div>
+          <div className="rounded-full bg-zinc-900/90 px-3 py-1 text-xs font-medium text-white">API: {API_URL}</div>
+        </header>
 
-          {authModo === "login" ? (
-            <form className="grid gap-2" onSubmit={handleLogin}>
-              <input className="rounded border p-2" placeholder="Email" value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} />
-              <input className="rounded border p-2" placeholder="Senha" type="password" value={loginForm.senha} onChange={(e) => setLoginForm({ ...loginForm, senha: e.target.value })} />
-              <button className="rounded bg-emerald-600 px-3 py-2 text-white" type="submit">Entrar</button>
-            </form>
-          ) : (
-            <form className="grid gap-2" onSubmit={handleRegistro}>
-              <input className="rounded border p-2" placeholder="Nome" value={registro.nome} onChange={(e) => setRegistro({ ...registro, nome: e.target.value })} />
-              <input className="rounded border p-2" placeholder="Email" value={registro.email} onChange={(e) => setRegistro({ ...registro, email: e.target.value })} />
-              <input className="rounded border p-2" placeholder="Senha" type="password" value={registro.senha} onChange={(e) => setRegistro({ ...registro, senha: e.target.value })} />
-              <select className="rounded border p-2" value={registro.nivel_acesso} onChange={(e) => setRegistro({ ...registro, nivel_acesso: e.target.value })}>
-                <option value="cliente">Cliente</option>
-                <option value="tecnico">Técnico</option>
-                <option value="admin">Admin</option>
-              </select>
-              <button className="rounded bg-blue-600 px-3 py-2 text-white" type="submit">Criar conta</button>
-            </form>
-          )}
-        </section>
-      ) : (
-        <>
-          <section className="flex flex-wrap items-center gap-3 rounded border border-zinc-200 p-4">
-            <p>
-              <strong>{usuario.nome}</strong> ({usuario.nivel_acesso})
-            </p>
-            <button className="rounded border px-3 py-2" onClick={logout}>Sair</button>
-            <button className="rounded border px-3 py-2" onClick={carregarEquipamentos}>Listar equipamentos</button>
-            <button className="rounded border px-3 py-2" onClick={listarChamados}>Listar chamados</button>
-            {(usuario.nivel_acesso === "admin" || usuario.nivel_acesso === "tecnico") && (
-              <button className="rounded border px-3 py-2" onClick={listarManutencao}>Listar manutenções</button>
-            )}
-            {usuario.nivel_acesso === "admin" && (
-              <button className="rounded border px-3 py-2" onClick={carregarDashboardAdmin}>Dashboard admin</button>
-            )}
-            {(usuario.nivel_acesso === "admin" || usuario.nivel_acesso === "tecnico") && (
-              <button className="rounded border px-3 py-2" onClick={carregarDashboardTecnico}>Painel técnico</button>
+        {!usuario ? (
+          <section className={`${cardClass} mx-auto w-full max-w-lg`}>
+            <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl bg-zinc-100 p-1">
+              <button
+                className={`${btnClass} ${authModo === "login" ? "bg-white shadow text-zinc-900" : "text-zinc-600"}`}
+                onClick={() => setAuthModo("login")}
+              >
+                Login
+              </button>
+              <button
+                className={`${btnClass} ${authModo === "registro" ? "bg-white shadow text-zinc-900" : "text-zinc-600"}`}
+                onClick={() => setAuthModo("registro")}
+              >
+                Registro
+              </button>
+            </div>
+
+            {authModo === "login" ? (
+              <form className="grid gap-3" onSubmit={handleLogin}>
+                <input className={inputClass} placeholder="Email" value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} />
+                <input className={inputClass} placeholder="Senha" type="password" value={loginForm.senha} onChange={(e) => setLoginForm({ ...loginForm, senha: e.target.value })} />
+                <button className={`${btnClass} bg-emerald-600 text-white hover:bg-emerald-500`} type="submit">Entrar</button>
+              </form>
+            ) : (
+              <form className="grid gap-3" onSubmit={handleRegistro}>
+                <input className={inputClass} placeholder="Nome" value={registro.nome} onChange={(e) => setRegistro({ ...registro, nome: e.target.value })} />
+                <input className={inputClass} placeholder="Email" value={registro.email} onChange={(e) => setRegistro({ ...registro, email: e.target.value })} />
+                <input className={inputClass} placeholder="Senha" type="password" value={registro.senha} onChange={(e) => setRegistro({ ...registro, senha: e.target.value })} />
+                <select className={inputClass} value={registro.nivel_acesso} onChange={(e) => setRegistro({ ...registro, nivel_acesso: e.target.value })}>
+                  <option value="cliente">Cliente</option>
+                  <option value="tecnico">Técnico</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <button className={`${btnClass} bg-blue-600 text-white hover:bg-blue-500`} type="submit">Criar conta</button>
+              </form>
             )}
           </section>
-
-          {usuario.nivel_acesso === "admin" && (
-            <section className="grid gap-2 rounded border border-zinc-200 p-4">
-              <h2 className="font-semibold">Novo equipamento</h2>
-              <form className="grid gap-2 md:grid-cols-2" onSubmit={criarEquipamento}>
-                <input className="rounded border p-2" placeholder="Nome" value={novoEquipamento.nome} onChange={(e) => setNovoEquipamento({ ...novoEquipamento, nome: e.target.value })} />
-                <input className="rounded border p-2" placeholder="Categoria" value={novoEquipamento.categoria} onChange={(e) => setNovoEquipamento({ ...novoEquipamento, categoria: e.target.value })} />
-                <input className="rounded border p-2" placeholder="Patrimônio" value={novoEquipamento.patrimonio} onChange={(e) => setNovoEquipamento({ ...novoEquipamento, patrimonio: e.target.value })} />
-                <select className="rounded border p-2" value={novoEquipamento.status} onChange={(e) => setNovoEquipamento({ ...novoEquipamento, status: e.target.value })}>
-                  <option value="operacional">Operacional</option>
-                  <option value="em_manutencao">Em manutenção</option>
-                  <option value="desativado">Desativado</option>
-                </select>
-                <textarea className="rounded border p-2 md:col-span-2" placeholder="Descrição" value={novoEquipamento.descricao} onChange={(e) => setNovoEquipamento({ ...novoEquipamento, descricao: e.target.value })} />
-                <button className="rounded bg-indigo-600 px-3 py-2 text-white md:col-span-2">Salvar equipamento</button>
-              </form>
+        ) : (
+          <>
+            <section className={`${cardClass} flex flex-wrap items-center gap-2`}>
+              <p className="mr-auto text-sm">
+                Logado como <strong>{usuario.nome}</strong> ({usuario.nivel_acesso})
+              </p>
+              <button className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`} onClick={logout}>Sair</button>
+              <button className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`} onClick={carregarEquipamentos}>Equipamentos</button>
+              <button className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`} onClick={listarChamados}>Chamados</button>
+              {(usuario.nivel_acesso === "admin" || usuario.nivel_acesso === "tecnico") && (
+                <button className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`} onClick={listarManutencao}>Manutenções</button>
+              )}
+              {usuario.nivel_acesso === "admin" && (
+                <button className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`} onClick={carregarDashboardAdmin}>Dashboard admin</button>
+              )}
+              {(usuario.nivel_acesso === "admin" || usuario.nivel_acesso === "tecnico") && (
+                <button className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`} onClick={carregarDashboardTecnico}>Painel técnico</button>
+              )}
             </section>
-          )}
 
-          {(usuario.nivel_acesso === "cliente" || usuario.nivel_acesso === "admin") && (
-            <section className="grid gap-2 rounded border border-zinc-200 p-4">
-              <h2 className="font-semibold">Abrir chamado</h2>
-              <form className="grid gap-2 md:grid-cols-2" onSubmit={criarChamado}>
-                <input className="rounded border p-2" placeholder="Título" value={novoChamado.titulo} onChange={(e) => setNovoChamado({ ...novoChamado, titulo: e.target.value })} />
-                <input className="rounded border p-2" placeholder="ID do equipamento" value={novoChamado.equipamento_id} onChange={(e) => setNovoChamado({ ...novoChamado, equipamento_id: e.target.value })} />
-                <select className="rounded border p-2" value={novoChamado.prioridade} onChange={(e) => setNovoChamado({ ...novoChamado, prioridade: e.target.value })}>
-                  <option value="baixa">Baixa</option>
-                  <option value="media">Média</option>
-                  <option value="alta">Alta</option>
-                </select>
-                <textarea className="rounded border p-2 md:col-span-2" placeholder="Descrição" value={novoChamado.descricao} onChange={(e) => setNovoChamado({ ...novoChamado, descricao: e.target.value })} />
-                <button className="rounded bg-orange-600 px-3 py-2 text-white md:col-span-2">Abrir chamado</button>
-              </form>
-            </section>
-          )}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {usuario.nivel_acesso === "admin" && (
+                <section className={cardClass}>
+                  <h2 className="mb-3 text-lg font-semibold">Novo equipamento</h2>
+                  <form className="grid gap-2" onSubmit={criarEquipamento}>
+                    <input className={inputClass} placeholder="Nome" value={novoEquipamento.nome} onChange={(e) => setNovoEquipamento({ ...novoEquipamento, nome: e.target.value })} />
+                    <input className={inputClass} placeholder="Categoria" value={novoEquipamento.categoria} onChange={(e) => setNovoEquipamento({ ...novoEquipamento, categoria: e.target.value })} />
+                    <input className={inputClass} placeholder="Patrimônio" value={novoEquipamento.patrimonio} onChange={(e) => setNovoEquipamento({ ...novoEquipamento, patrimonio: e.target.value })} />
+                    <select className={inputClass} value={novoEquipamento.status} onChange={(e) => setNovoEquipamento({ ...novoEquipamento, status: e.target.value })}>
+                      <option value="operacional">Operacional</option>
+                      <option value="em_manutencao">Em manutenção</option>
+                      <option value="desativado">Desativado</option>
+                    </select>
+                    <textarea className={inputClass} placeholder="Descrição" value={novoEquipamento.descricao} onChange={(e) => setNovoEquipamento({ ...novoEquipamento, descricao: e.target.value })} />
+                    <button className={`${btnClass} bg-indigo-600 text-white hover:bg-indigo-500`}>Salvar equipamento</button>
+                  </form>
+                </section>
+              )}
 
-          {usuario.nivel_acesso === "tecnico" && (
-            <section className="grid gap-2 rounded border border-zinc-200 p-4">
-              <h2 className="font-semibold">Registrar manutenção</h2>
-              <form className="grid gap-2 md:grid-cols-2" onSubmit={registrarManutencao}>
-                <input className="rounded border p-2" placeholder="ID chamado" value={novaManutencao.chamado_id} onChange={(e) => setNovaManutencao({ ...novaManutencao, chamado_id: e.target.value })} />
-                <input className="rounded border p-2" placeholder="ID equipamento" value={novaManutencao.equipamento_id} onChange={(e) => setNovaManutencao({ ...novaManutencao, equipamento_id: e.target.value })} />
-                <textarea className="rounded border p-2 md:col-span-2" placeholder="Descrição do reparo" value={novaManutencao.descricao} onChange={(e) => setNovaManutencao({ ...novaManutencao, descricao: e.target.value })} />
-                <button className="rounded bg-teal-600 px-3 py-2 text-white md:col-span-2">Registrar</button>
-              </form>
-            </section>
-          )}
+              {(usuario.nivel_acesso === "cliente" || usuario.nivel_acesso === "admin") && (
+                <section className={cardClass}>
+                  <h2 className="mb-3 text-lg font-semibold">Abrir chamado</h2>
+                  <form className="grid gap-2" onSubmit={criarChamado}>
+                    <input className={inputClass} placeholder="Título" value={novoChamado.titulo} onChange={(e) => setNovoChamado({ ...novoChamado, titulo: e.target.value })} />
+                    <input className={inputClass} placeholder="ID do equipamento" value={novoChamado.equipamento_id} onChange={(e) => setNovoChamado({ ...novoChamado, equipamento_id: e.target.value })} />
+                    <select className={inputClass} value={novoChamado.prioridade} onChange={(e) => setNovoChamado({ ...novoChamado, prioridade: e.target.value })}>
+                      <option value="baixa">Baixa</option>
+                      <option value="media">Média</option>
+                      <option value="alta">Alta</option>
+                    </select>
+                    <textarea className={inputClass} placeholder="Descrição" value={novoChamado.descricao} onChange={(e) => setNovoChamado({ ...novoChamado, descricao: e.target.value })} />
+                    <button className={`${btnClass} bg-orange-600 text-white hover:bg-orange-500`}>Abrir chamado</button>
+                  </form>
+                </section>
+              )}
 
-          <section className="grid gap-4 md:grid-cols-2">
-            <div className="rounded border border-zinc-200 p-4">
-              <h2 className="mb-2 font-semibold">Equipamentos</h2>
-              <pre className="max-h-80 overflow-auto rounded bg-zinc-100 p-2 text-xs">{JSON.stringify(equipamentos, null, 2)}</pre>
+              {usuario.nivel_acesso === "tecnico" && (
+                <section className={cardClass}>
+                  <h2 className="mb-3 text-lg font-semibold">Registrar manutenção</h2>
+                  <form className="grid gap-2" onSubmit={registrarManutencao}>
+                    <input className={inputClass} placeholder="ID chamado" value={novaManutencao.chamado_id} onChange={(e) => setNovaManutencao({ ...novaManutencao, chamado_id: e.target.value })} />
+                    <input className={inputClass} placeholder="ID equipamento" value={novaManutencao.equipamento_id} onChange={(e) => setNovaManutencao({ ...novaManutencao, equipamento_id: e.target.value })} />
+                    <textarea className={inputClass} placeholder="Descrição do reparo" value={novaManutencao.descricao} onChange={(e) => setNovaManutencao({ ...novaManutencao, descricao: e.target.value })} />
+                    <button className={`${btnClass} bg-teal-600 text-white hover:bg-teal-500`}>Registrar</button>
+                  </form>
+                </section>
+              )}
             </div>
-            <div className="rounded border border-zinc-200 p-4">
-              <h2 className="mb-2 font-semibold">Chamados</h2>
-              <div className="mb-2 flex flex-wrap gap-2">
-                {(usuario.nivel_acesso === "admin" || usuario.nivel_acesso === "tecnico") && (
-                  <>
-                    <button className="rounded border px-2 py-1 text-sm" onClick={() => atualizarStatus(prompt("ID do chamado"), "em_atendimento")}>Marcar em atendimento</button>
-                    <button className="rounded border px-2 py-1 text-sm" onClick={() => atualizarStatus(prompt("ID do chamado"), "resolvido")}>Marcar resolvido</button>
-                    <button className="rounded border px-2 py-1 text-sm" onClick={() => atualizarStatus(prompt("ID do chamado"), "cancelado")}>Cancelar chamado</button>
-                  </>
-                )}
+
+            <section className="grid gap-4 lg:grid-cols-2">
+              <div className={cardClass}>
+                <h2 className="mb-2 text-lg font-semibold">Equipamentos</h2>
+                <pre className="max-h-80 overflow-auto rounded-xl bg-zinc-950 p-3 text-xs text-zinc-100">{JSON.stringify(equipamentos, null, 2)}</pre>
               </div>
-              <pre className="max-h-80 overflow-auto rounded bg-zinc-100 p-2 text-xs">{JSON.stringify(chamados, null, 2)}</pre>
-            </div>
-            <div className="rounded border border-zinc-200 p-4">
-              <h2 className="mb-2 font-semibold">Histórico de manutenção</h2>
-              <pre className="max-h-80 overflow-auto rounded bg-zinc-100 p-2 text-xs">{JSON.stringify(manutencoes, null, 2)}</pre>
-            </div>
-            <div className="rounded border border-zinc-200 p-4">
-              <h2 className="mb-2 font-semibold">Dashboard</h2>
-              <pre className="max-h-80 overflow-auto rounded bg-zinc-100 p-2 text-xs">{JSON.stringify(dashboard, null, 2)}</pre>
-            </div>
-          </section>
-        </>
-      )}
+              <div className={cardClass}>
+                <h2 className="mb-2 text-lg font-semibold">Chamados</h2>
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {(usuario.nivel_acesso === "admin" || usuario.nivel_acesso === "tecnico") && (
+                    <>
+                      <button className={`${btnClass} border border-zinc-300 bg-white hover:bg-zinc-50`} onClick={() => atualizarStatus(prompt("ID do chamado"), "em_atendimento")}>Em atendimento</button>
+                      <button className={`${btnClass} border border-zinc-300 bg-white hover:bg-zinc-50`} onClick={() => atualizarStatus(prompt("ID do chamado"), "resolvido")}>Resolvido</button>
+                      <button className={`${btnClass} border border-zinc-300 bg-white hover:bg-zinc-50`} onClick={() => atualizarStatus(prompt("ID do chamado"), "cancelado")}>Cancelar</button>
+                    </>
+                  )}
+                </div>
+                <pre className="max-h-80 overflow-auto rounded-xl bg-zinc-950 p-3 text-xs text-zinc-100">{JSON.stringify(chamados, null, 2)}</pre>
+              </div>
+              <div className={cardClass}>
+                <h2 className="mb-2 text-lg font-semibold">Histórico de manutenção</h2>
+                <pre className="max-h-80 overflow-auto rounded-xl bg-zinc-950 p-3 text-xs text-zinc-100">{JSON.stringify(manutencoes, null, 2)}</pre>
+              </div>
+              <div className={cardClass}>
+                <h2 className="mb-2 text-lg font-semibold">Dashboard</h2>
+                <pre className="max-h-80 overflow-auto rounded-xl bg-zinc-950 p-3 text-xs text-zinc-100">{JSON.stringify(dashboard, null, 2)}</pre>
+              </div>
+            </section>
+          </>
+        )}
 
-      {mensagem && <p className="rounded bg-zinc-100 p-3 text-sm">{mensagem}</p>}
+        {mensagem && (
+          <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-950 shadow-sm">{mensagem}</p>
+        )}
+      </div>
     </main>
   );
 }

@@ -1,33 +1,67 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/contexts/ToastContext";
 import { chamadosAPI, equipamentosAPI } from "@/lib/api";
+import { chamadoSchema, filtrosChamadosSchema } from "@/lib/schemas";
 import { Button } from "@/components/ui/Form";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardHeader, CardTitle, CardContent, PageHeader, EmptyState } from "@/components/ui/Card";
 import { ModalWithFooter } from "@/components/ui/Modal";
-import { Input, Textarea, Select, FormGroup } from "@/components/ui/Form";
+import { FormField } from "@/components/ui/FormField";
 
 export default function ChamadosPage() {
   const { showSuccess, showError } = useToast();
   const [chamados, setChamados] = useState([]);
+  const [chamadosFiltrados, setChamadosFiltrados] = useState([]);
   const [equipamentos, setEquipamentos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [detalhesOpen, setDetalhesOpen] = useState(false);
   const [chamadoSelecionado, setChamadoSelecionado] = useState(null);
 
-  const [novoChamado, setNovoChamado] = useState({
-    titulo: "",
-    descricao: "",
-    equipamento_id: "",
-    prioridade: "media",
+  // Form para criar chamado
+  const {
+    control: controlCriar,
+    handleSubmit: handleSubmitCriar,
+    reset: resetCriar,
+    formState: { errors: errorsCriar, isSubmitting: isSubmittingCriar },
+  } = useForm({
+    resolver: zodResolver(chamadoSchema),
+    defaultValues: {
+      titulo: "",
+      descricao: "",
+      equipamento_id: "",
+      prioridade: "media",
+    },
   });
+
+  // Form para filtros
+  const {
+    control: controlFiltros,
+    watch: watchFiltros,
+    reset: resetFiltros,
+  } = useForm({
+    resolver: zodResolver(filtrosChamadosSchema),
+    defaultValues: {
+      busca: "",
+      status: "",
+      prioridade: "",
+    },
+  });
+
+  const filtros = watchFiltros();
 
   useEffect(() => {
     carregarDados();
   }, []);
+
+  // Aplicar filtros quando mudam
+  useEffect(() => {
+    aplicarFiltros();
+  }, [filtros, chamados]);
 
   async function carregarDados() {
     try {
@@ -45,15 +79,36 @@ export default function ChamadosPage() {
     }
   }
 
-  async function handleCriarChamado(e) {
-    e.preventDefault();
+  function aplicarFiltros() {
+    let resultado = chamados;
+
+    if (filtros.busca) {
+      resultado = resultado.filter(
+        (ch) =>
+          ch.titulo.toLowerCase().includes(filtros.busca.toLowerCase()) ||
+          ch.descricao.toLowerCase().includes(filtros.busca.toLowerCase())
+      );
+    }
+
+    if (filtros.status) {
+      resultado = resultado.filter((ch) => ch.status === filtros.status);
+    }
+
+    if (filtros.prioridade) {
+      resultado = resultado.filter((ch) => ch.prioridade === filtros.prioridade);
+    }
+
+    setChamadosFiltrados(resultado);
+  }
+
+  async function onSubmitCriar(data) {
     try {
       await chamadosAPI.create({
-        ...novoChamado,
-        equipamento_id: Number(novoChamado.equipamento_id),
+        ...data,
+        equipamento_id: Number(data.equipamento_id),
       });
       showSuccess("Chamado criado com sucesso!");
-      setNovoChamado({ titulo: "", descricao: "", equipamento_id: "", prioridade: "media" });
+      resetCriar();
       setModalOpen(false);
       carregarDados();
     } catch (error) {
@@ -78,13 +133,68 @@ export default function ChamadosPage() {
         action={<Button onClick={() => setModalOpen(true)}>+ Novo Chamado</Button>}
       />
 
+      {/* Filtros */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtros</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FormField
+              control={controlFiltros}
+              name="busca"
+              label="Buscar"
+              placeholder="Título ou descrição..."
+            />
+            <FormField
+              control={controlFiltros}
+              name="status"
+              label="Status"
+              isSelect
+              options={[
+                { value: "", label: "Todos" },
+                { value: "aberto", label: "Aberto" },
+                { value: "em_atendimento", label: "Em Atendimento" },
+                { value: "resolvido", label: "Resolvido" },
+                { value: "cancelado", label: "Cancelado" },
+              ]}
+            />
+            <FormField
+              control={controlFiltros}
+              name="prioridade"
+              label="Prioridade"
+              isSelect
+              options={[
+                { value: "", label: "Todas" },
+                { value: "baixa", label: "Baixa" },
+                { value: "media", label: "Média" },
+                { value: "alta", label: "Alta" },
+              ]}
+            />
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => resetFiltros()}
+            className="mt-4"
+          >
+            Limpar Filtros
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Tabela */}
       <Card>
         <CardContent>
-          {chamados.length === 0 ? (
+          {chamadosFiltrados.length === 0 ? (
             <EmptyState
-              title="Nenhum chamado"
-              description="Você ainda não abriu nenhum chamado"
-              action={<Button onClick={() => setModalOpen(true)}>Criar Chamado</Button>}
+              title="Nenhum chamado encontrado"
+              description={
+                chamados.length === 0
+                  ? "Você ainda não abriu nenhum chamado"
+                  : "Nenhum chamado corresponde aos filtros"
+              }
+              action={chamados.length === 0 && <Button onClick={() => setModalOpen(true)}>Criar Chamado</Button>}
             />
           ) : (
             <div className="overflow-x-auto">
@@ -99,9 +209,9 @@ export default function ChamadosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {chamados.map((chamado) => (
+                  {chamadosFiltrados.map((chamado) => (
                     <tr key={chamado.id} className="border-b border-zinc-200 hover:bg-zinc-50">
-                      <td className="px-4 py-3">{chamado.titulo}</td>
+                      <td className="px-4 py-3 font-medium">{chamado.titulo}</td>
                       <td className="px-4 py-3">{chamado.equipamento}</td>
                       <td className="px-4 py-3">
                         <Badge status={chamado.prioridade}>{chamado.prioridade}</Badge>
@@ -140,51 +250,54 @@ export default function ChamadosPage() {
             <Button variant="outline" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCriarChamado}>Criar</Button>
+            <Button onClick={handleSubmitCriar(onSubmitCriar)} disabled={isSubmittingCriar}>
+              {isSubmittingCriar ? "Criando..." : "Criar"}
+            </Button>
           </>
         }
       >
-        <form className="space-y-4" onSubmit={handleCriarChamado}>
-          <FormGroup label="Título">
-            <Input
-              value={novoChamado.titulo}
-              onChange={(e) => setNovoChamado({ ...novoChamado, titulo: e.target.value })}
-              placeholder="Descreva o problema brevemente"
-              required
-            />
-          </FormGroup>
-          <FormGroup label="Descrição">
-            <Textarea
-              value={novoChamado.descricao}
-              onChange={(e) => setNovoChamado({ ...novoChamado, descricao: e.target.value })}
-              placeholder="Detalhes do problema..."
-              required
-            />
-          </FormGroup>
-          <FormGroup label="Equipamento">
-            <Select
-              value={novoChamado.equipamento_id}
-              onChange={(e) => setNovoChamado({ ...novoChamado, equipamento_id: e.target.value })}
-              required
-            >
-              <option value="">Selecione um equipamento</option>
-              {equipamentos.map((eq) => (
-                <option key={eq.id} value={eq.id}>
-                  {eq.nome} ({eq.categoria})
-                </option>
-              ))}
-            </Select>
-          </FormGroup>
-          <FormGroup label="Prioridade">
-            <Select
-              value={novoChamado.prioridade}
-              onChange={(e) => setNovoChamado({ ...novoChamado, prioridade: e.target.value })}
-            >
-              <option value="baixa">Baixa</option>
-              <option value="media">Média</option>
-              <option value="alta">Alta</option>
-            </Select>
-          </FormGroup>
+        <form className="space-y-4" onSubmit={handleSubmitCriar(onSubmitCriar)}>
+          <FormField
+            control={controlCriar}
+            name="titulo"
+            label="Título"
+            placeholder="Descreva o problema brevemente"
+            error={errorsCriar.titulo}
+            required
+          />
+          <FormField
+            control={controlCriar}
+            name="descricao"
+            label="Descrição"
+            isTextarea
+            placeholder="Detalhes do problema..."
+            error={errorsCriar.descricao}
+            required
+          />
+          <FormField
+            control={controlCriar}
+            name="equipamento_id"
+            label="Equipamento"
+            isSelect
+            options={equipamentos.map((eq) => ({
+              value: eq.id,
+              label: `${eq.nome} (${eq.categoria})`,
+            }))}
+            error={errorsCriar.equipamento_id}
+            required
+          />
+          <FormField
+            control={controlCriar}
+            name="prioridade"
+            label="Prioridade"
+            isSelect
+            options={[
+              { value: "baixa", label: "Baixa" },
+              { value: "media", label: "Média" },
+              { value: "alta", label: "Alta" },
+            ]}
+            error={errorsCriar.prioridade}
+          />
         </form>
       </ModalWithFooter>
 

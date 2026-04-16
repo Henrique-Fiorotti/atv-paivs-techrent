@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/contexts/ToastContext";
 import { usuariosAPI, authAPI } from "@/lib/api";
+import { usuarioSchema } from "@/lib/schemas";
 import { Card, CardHeader, CardTitle, CardContent, PageHeader, EmptyState } from "@/components/ui/Card";
-import { Button, Input, Select, FormGroup } from "@/components/ui/Form";
+import { Button } from "@/components/ui/Form";
 import { ModalWithFooter } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
+import { FormField } from "@/components/ui/FormField";
 
 export default function UsuariosPage() {
   const { user } = useAuth();
@@ -18,11 +22,20 @@ export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [novoUsuario, setNovoUsuario] = useState({
-    nome: "",
-    email: "",
-    senha: "",
-    nivel_acesso: "cliente",
+
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(usuarioSchema),
+    defaultValues: {
+      nome: "",
+      email: "",
+      senha: "",
+      nivel_acesso: "cliente",
+    },
   });
 
   // Proteger rota - apenas admin
@@ -48,17 +61,11 @@ export default function UsuariosPage() {
     }
   }
 
-  async function handleCriarUsuario(e) {
-    e.preventDefault();
+  async function onSubmit(data) {
     try {
-      await authAPI.registro(
-        novoUsuario.nome,
-        novoUsuario.email,
-        novoUsuario.senha,
-        novoUsuario.nivel_acesso
-      );
+      await authAPI.registro(data.nome, data.email, data.senha, data.nivel_acesso);
       showSuccess("Usuário criado com sucesso!");
-      setNovoUsuario({ nome: "", email: "", senha: "", nivel_acesso: "cliente" });
+      reset();
       setModalOpen(false);
       carregarUsuarios();
     } catch (error) {
@@ -153,47 +160,51 @@ export default function UsuariosPage() {
             <Button variant="outline" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCriarUsuario}>Criar</Button>
+            <Button onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
+              {isSubmitting ? "Criando..." : "Criar"}
+            </Button>
           </>
         }
       >
-        <form className="space-y-4" onSubmit={handleCriarUsuario}>
-          <FormGroup label="Nome">
-            <Input
-              value={novoUsuario.nome}
-              onChange={(e) => setNovoUsuario({ ...novoUsuario, nome: e.target.value })}
-              placeholder="Nome completo"
-              required
-            />
-          </FormGroup>
-          <FormGroup label="Email">
-            <Input
-              type="email"
-              value={novoUsuario.email}
-              onChange={(e) => setNovoUsuario({ ...novoUsuario, email: e.target.value })}
-              placeholder="email@example.com"
-              required
-            />
-          </FormGroup>
-          <FormGroup label="Senha">
-            <Input
-              type="password"
-              value={novoUsuario.senha}
-              onChange={(e) => setNovoUsuario({ ...novoUsuario, senha: e.target.value })}
-              placeholder="Senha segura"
-              required
-            />
-          </FormGroup>
-          <FormGroup label="Nível de Acesso">
-            <Select
-              value={novoUsuario.nivel_acesso}
-              onChange={(e) => setNovoUsuario({ ...novoUsuario, nivel_acesso: e.target.value })}
-            >
-              <option value="cliente">Cliente</option>
-              <option value="tecnico">Técnico</option>
-              <option value="admin">Admin</option>
-            </Select>
-          </FormGroup>
+        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          <FormField
+            control={control}
+            name="nome"
+            label="Nome"
+            placeholder="Nome completo"
+            error={errors.nome}
+            required
+          />
+          <FormField
+            control={control}
+            name="email"
+            label="Email"
+            type="email"
+            placeholder="email@example.com"
+            error={errors.email}
+            required
+          />
+          <FormField
+            control={control}
+            name="senha"
+            label="Senha"
+            type="password"
+            placeholder="Senha segura"
+            error={errors.senha}
+            required
+          />
+          <FormField
+            control={control}
+            name="nivel_acesso"
+            label="Nível de Acesso"
+            isSelect
+            options={[
+              { value: "cliente", label: "Cliente" },
+              { value: "tecnico", label: "Técnico" },
+              { value: "admin", label: "Admin" },
+            ]}
+            error={errors.nivel_acesso}
+          />
         </form>
       </ModalWithFooter>
     </div>

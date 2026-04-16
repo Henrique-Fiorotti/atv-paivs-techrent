@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/contexts/ToastContext";
 import { dashboardAPI, chamadosAPI, manutencaoAPI } from "@/lib/api";
+import { manutencaoSchema } from "@/lib/schemas";
 import { Card, CardHeader, CardTitle, CardContent, PageHeader, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Form";
 import { ModalWithFooter } from "@/components/ui/Modal";
-import { Textarea, FormGroup } from "@/components/ui/Form";
+import { FormField } from "@/components/ui/FormField";
 
 export default function PainelTecnico() {
   const { showSuccess, showError } = useToast();
@@ -15,7 +18,20 @@ export default function PainelTecnico() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [chamadoSelecionado, setChamadoSelecionado] = useState(null);
-  const [descricaoReparo, setDescricaoReparo] = useState("");
+
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(manutencaoSchema),
+    defaultValues: {
+      chamado_id: "",
+      equipamento_id: "",
+      descricao: "",
+    },
+  });
 
   useEffect(() => {
     carregarDados();
@@ -43,25 +59,24 @@ export default function PainelTecnico() {
     }
   }
 
-  async function handleFinalizarChamado(e) {
-    e.preventDefault();
+  async function onSubmit(data) {
     if (!chamadoSelecionado) return;
 
     try {
       // Registrar manutenção
       await manutencaoAPI.create({
-        chamado_id: chamadoSelecionado.id,
+        chamado_id: chamadoSelecionado.chamado_id,
         equipamento_id: chamadoSelecionado.equipamento_id,
-        descricao: descricaoReparo,
+        descricao: data.descricao,
       });
 
       // Atualizar status do chamado
-      await chamadosAPI.updateStatus(chamadoSelecionado.id, "resolvido");
+      await chamadosAPI.updateStatus(chamadoSelecionado.chamado_id, "resolvido");
 
       showSuccess("Chamado finalizado com sucesso!");
+      reset();
       setModalOpen(false);
       setChamadoSelecionado(null);
-      setDescricaoReparo("");
       carregarDados();
     } catch (error) {
       showError(error.message);
@@ -139,6 +154,11 @@ export default function PainelTecnico() {
                         size="sm"
                         onClick={() => {
                           setChamadoSelecionado(chamado);
+                          reset({
+                            chamado_id: chamado.chamado_id,
+                            equipamento_id: chamado.equipamento_id,
+                            descricao: "",
+                          });
                           setModalOpen(true);
                         }}
                       >
@@ -164,24 +184,27 @@ export default function PainelTecnico() {
             <Button variant="outline" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleFinalizarChamado}>Finalizar</Button>
+            <Button onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
+              {isSubmitting ? "Finalizando..." : "Finalizar"}
+            </Button>
           </>
         }
       >
         {chamadoSelecionado && (
-          <form className="space-y-4" onSubmit={handleFinalizarChamado}>
+          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div className="p-4 bg-zinc-50 rounded-lg">
               <p className="text-sm text-zinc-600">Chamado</p>
               <p className="font-semibold">{chamadoSelecionado.titulo}</p>
             </div>
-            <FormGroup label="Descrição do Reparo">
-              <Textarea
-                value={descricaoReparo}
-                onChange={(e) => setDescricaoReparo(e.target.value)}
-                placeholder="Descreva o que foi feito..."
-                required
-              />
-            </FormGroup>
+            <FormField
+              control={control}
+              name="descricao"
+              label="Descrição do Reparo"
+              isTextarea
+              placeholder="Descreva o que foi feito..."
+              error={errors.descricao}
+              required
+            />
           </form>
         )}
       </ModalWithFooter>

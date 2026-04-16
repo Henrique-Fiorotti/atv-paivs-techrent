@@ -1,35 +1,48 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
+import {
+  authAPI,
+  equipamentosAPI,
+  chamadosAPI,
+  manutencaoAPI,
+  dashboardAPI,
+} from "@/lib/api";
+import { Input, Button, FormGroup, Select, Textarea } from "@/components/ui/Form";
+import { Modal, ModalWithFooter } from "@/components/ui/Modal";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardTitle, CardContent, StatsCard, PageHeader, EmptyState } from "@/components/ui/Card";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
 
-const estadoInicialRegistro = {
-  nome: "",
-  email: "",
-  senha: "",
-  nivel_acesso: "cliente",
-};
-
-const cardClass =
-  "rounded-2xl border border-white/40 bg-white/80 p-5 shadow-sm backdrop-blur";
-const inputClass =
-  "w-full rounded-xl border border-zinc-200 bg-white/90 px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100";
-const btnClass =
-  "rounded-xl px-4 py-2 text-sm font-medium transition active:scale-[0.99]";
-
 export default function Home() {
+  const { user, token, login, logout, loading } = useAuth();
+  const { showSuccess, showError } = useToast();
+
+  // Estados de autenticação
   const [authModo, setAuthModo] = useState("login");
-  const [registro, setRegistro] = useState(estadoInicialRegistro);
   const [loginForm, setLoginForm] = useState({ email: "", senha: "" });
-  const [token, setToken] = useState("");
-  const [usuario, setUsuario] = useState(null);
+  const [registroForm, setRegistroForm] = useState({
+    nome: "",
+    email: "",
+    senha: "",
+    nivel_acesso: "cliente",
+  });
+
+  // Estados de dados
   const [equipamentos, setEquipamentos] = useState([]);
   const [chamados, setChamados] = useState([]);
   const [manutencoes, setManutencoes] = useState([]);
   const [dashboard, setDashboard] = useState(null);
-  const [mensagem, setMensagem] = useState("");
 
+  // Estados de modais
+  const [modalEquipamento, setModalEquipamento] = useState(false);
+  const [modalChamado, setModalChamado] = useState(false);
+  const [modalManutencao, setModalManutencao] = useState(false);
+
+  // Estados de formulários
   const [novoEquipamento, setNovoEquipamento] = useState({
     nome: "",
     categoria: "",
@@ -51,251 +64,148 @@ export default function Home() {
     descricao: "",
   });
 
-  const headers = useMemo(() => {
-    const base = { "Content-Type": "application/json" };
-    if (token) {
-      base.Authorization = `Bearer ${token}`;
-    }
-    return base;
-  }, [token]);
-
+  // Carregar dados ao autenticar
   useEffect(() => {
-    const tokenSalvo = localStorage.getItem("token");
-    const usuarioSalvo = localStorage.getItem("usuario");
-
-    if (tokenSalvo) {
-      setToken(tokenSalvo);
+    if (user) {
+      carregarDados();
     }
+  }, [user]);
 
-    if (usuarioSalvo) {
-      setUsuario(JSON.parse(usuarioSalvo));
-    }
-  }, []);
-
-  async function request(path, options = {}) {
+  async function carregarDados() {
     try {
-      const response = await fetch(`${API_URL}${path}`, {
-        ...options,
-        headers: {
-          ...headers,
-          ...(options.headers || {}),
-        },
-      });
-
-      const contentType = response.headers.get("content-type") || "";
-      const isJson = contentType.includes("application/json");
-      const data = isJson ? await response.json() : null;
-
-      if (!response.ok) {
-        throw new Error(data?.message || data?.mensagem || "Erro na requisicao");
+      if (user?.nivel_acesso === "admin") {
+        const [equipRes, chamRes, dashRes] = await Promise.all([
+          equipamentosAPI.getAll(),
+          chamadosAPI.getAll(),
+          dashboardAPI.getAdmin(),
+        ]);
+        setEquipamentos(equipRes);
+        setChamados(chamRes);
+        setDashboard(dashRes);
+      } else if (user?.nivel_acesso === "tecnico") {
+        const [chamRes, manRes, dashRes] = await Promise.all([
+          chamadosAPI.getAll(),
+          manutencaoAPI.getAll(),
+          dashboardAPI.getTecnico(),
+        ]);
+        setChamados(chamRes);
+        setManutencoes(manRes);
+        setDashboard(dashRes);
+      } else {
+        const [chamRes] = await Promise.all([chamadosAPI.getAll()]);
+        setChamados(chamRes);
       }
-
-      return data;
     } catch (error) {
-      if (error instanceof TypeError) {
-        throw new Error(
-          "Falha de conexao com a API. Verifique CORS, URL do backend e se o servidor esta ativo."
-        );
-      }
-
-      throw error;
-    }
-  }
-
-  async function handleRegistro(e) {
-    e.preventDefault();
-    try {
-      const data = await request("/auth/registro", {
-        method: "POST",
-        body: JSON.stringify(registro),
-      });
-
-      setMensagem(data.message || data.mensagem || "Usuario registrado com sucesso.");
-      setRegistro(estadoInicialRegistro);
-      setAuthModo("login");
-    } catch (error) {
-      setMensagem(error.message);
+      showError(error.message);
     }
   }
 
   async function handleLogin(e) {
     e.preventDefault();
     try {
-      const data = await request("/auth/login", {
-        method: "POST",
-        body: JSON.stringify(loginForm),
-      });
-
+      const data = await authAPI.login(loginForm.email, loginForm.senha);
       const payload = data.usuario || JSON.parse(atob(data.token.split(".")[1]));
-      setToken(data.token);
-      setUsuario(payload);
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("usuario", JSON.stringify(payload));
-      setMensagem("Login realizado com sucesso.");
+      login(payload, data.token);
+      showSuccess("Login realizado com sucesso!");
+      setLoginForm({ email: "", senha: "" });
     } catch (error) {
-      setMensagem(error.message);
+      showError(error.message);
     }
   }
 
-  function logout() {
-    setToken("");
-    setUsuario(null);
-    setEquipamentos([]);
-    setChamados([]);
-    setManutencoes([]);
-    setDashboard(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("usuario");
-  }
-
-  async function carregarEquipamentos() {
-    try {
-      const data = await request("/equipamentos");
-      setEquipamentos(data);
-    } catch (error) {
-      setMensagem(error.message);
-    }
-  }
-
-  async function criarEquipamento(e) {
+  async function handleRegistro(e) {
     e.preventDefault();
     try {
-      await request("/equipamentos", {
-        method: "POST",
-        body: JSON.stringify(novoEquipamento),
-      });
-      setMensagem("Equipamento criado.");
-      setNovoEquipamento({
-        nome: "",
-        categoria: "",
-        patrimonio: "",
-        status: "operacional",
-        descricao: "",
-      });
-      carregarEquipamentos();
+      await authAPI.registro(
+        registroForm.nome,
+        registroForm.email,
+        registroForm.senha,
+        registroForm.nivel_acesso
+      );
+      showSuccess("Usuário registrado com sucesso!");
+      setRegistroForm({ nome: "", email: "", senha: "", nivel_acesso: "cliente" });
+      setAuthModo("login");
     } catch (error) {
-      setMensagem(error.message);
+      showError(error.message);
     }
   }
 
-  async function criarChamado(e) {
+  async function handleCriarEquipamento(e) {
     e.preventDefault();
     try {
-      await request("/chamados", {
-        method: "POST",
-        body: JSON.stringify({
-          ...novoChamado,
-          equipamento_id: Number(novoChamado.equipamento_id),
-        }),
-      });
-      setMensagem("Chamado criado.");
-      setNovoChamado({
-        titulo: "",
-        descricao: "",
-        equipamento_id: "",
-        prioridade: "media",
-      });
-      listarChamados();
+      await equipamentosAPI.create(novoEquipamento);
+      showSuccess("Equipamento criado com sucesso!");
+      setNovoEquipamento({ nome: "", categoria: "", patrimonio: "", status: "operacional", descricao: "" });
+      setModalEquipamento(false);
+      carregarDados();
     } catch (error) {
-      setMensagem(error.message);
+      showError(error.message);
     }
   }
 
-  async function listarChamados() {
-    try {
-      const data = await request("/chamados");
-      setChamados(data);
-    } catch (error) {
-      setMensagem(error.message);
-    }
-  }
-
-  async function atualizarStatus(chamadoId, status) {
-    try {
-      if (!chamadoId) {
-        return;
-      }
-
-      await request(`/chamados/${chamadoId}/status`, {
-        method: "PUT",
-        body: JSON.stringify({ status }),
-      });
-      setMensagem("Status atualizado.");
-      listarChamados();
-    } catch (error) {
-      setMensagem(error.message);
-    }
-  }
-
-  async function listarManutencao() {
-    try {
-      const data = await request("/manutencao");
-      setManutencoes(data);
-    } catch (error) {
-      setMensagem(error.message);
-    }
-  }
-
-  async function registrarManutencao(e) {
+  async function handleCriarChamado(e) {
     e.preventDefault();
     try {
-      await request("/manutencao", {
-        method: "POST",
-        body: JSON.stringify({
-          ...novaManutencao,
-          chamado_id: Number(novaManutencao.chamado_id),
-          equipamento_id: Number(novaManutencao.equipamento_id),
-        }),
+      await chamadosAPI.create({
+        ...novoChamado,
+        equipamento_id: Number(novoChamado.equipamento_id),
       });
-      setMensagem("Manutencao registrada.");
+      showSuccess("Chamado criado com sucesso!");
+      setNovoChamado({ titulo: "", descricao: "", equipamento_id: "", prioridade: "media" });
+      setModalChamado(false);
+      carregarDados();
+    } catch (error) {
+      showError(error.message);
+    }
+  }
+
+  async function handleRegistrarManutencao(e) {
+    e.preventDefault();
+    try {
+      await manutencaoAPI.create({
+        ...novaManutencao,
+        chamado_id: Number(novaManutencao.chamado_id),
+        equipamento_id: Number(novaManutencao.equipamento_id),
+      });
+      showSuccess("Manutenção registrada com sucesso!");
       setNovaManutencao({ chamado_id: "", equipamento_id: "", descricao: "" });
-      listarManutencao();
-      listarChamados();
+      setModalManutencao(false);
+      carregarDados();
     } catch (error) {
-      setMensagem(error.message);
+      showError(error.message);
     }
   }
 
-  async function carregarDashboardAdmin() {
-    try {
-      const data = await request("/dashboard/admin");
-      setDashboard(data);
-    } catch (error) {
-      setMensagem(error.message);
-    }
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-zinc-600">Carregando...</p>
+        </div>
+      </main>
+    );
   }
 
-  async function carregarDashboardTecnico() {
-    try {
-      const data = await request("/dashboard/tecnico");
-      setDashboard({ painel: data });
-    } catch (error) {
-      setMensagem(error.message);
-    }
-  }
+  // Tela de autenticação
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 px-4 py-8">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+          <header className="rounded-2xl border border-white/40 bg-white/80 p-5 shadow-sm backdrop-blur flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">TechRent</h1>
+              <p className="text-sm text-zinc-600">Plataforma de chamados, manutenção e gestão de ativos</p>
+            </div>
+            <div className="rounded-full bg-zinc-900/90 px-3 py-1 text-xs font-medium text-white">
+              API: {API_URL}
+            </div>
+          </header>
 
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 px-4 py-8 text-zinc-900">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <header
-          className={`${cardClass} flex flex-wrap items-center justify-between gap-3`}
-        >
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">TechRent</h1>
-            <p className="text-sm text-zinc-600">
-              Plataforma de chamados, manutencao e gestao de ativos
-            </p>
-          </div>
-          <div className="rounded-full bg-zinc-900/90 px-3 py-1 text-xs font-medium text-white">
-            API: {API_URL}
-          </div>
-        </header>
-
-        {!usuario ? (
-          <section className={`${cardClass} mx-auto w-full max-w-lg`}>
+          <Card className="mx-auto w-full max-w-lg">
             <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl bg-zinc-100 p-1">
               <button
-                className={`${btnClass} ${
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
                   authModo === "login"
                     ? "bg-white shadow text-zinc-900"
                     : "text-zinc-600"
@@ -305,7 +215,7 @@ export default function Home() {
                 Login
               </button>
               <button
-                className={`${btnClass} ${
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
                   authModo === "registro"
                     ? "bg-white shadow text-zinc-900"
                     : "text-zinc-600"
@@ -318,372 +228,374 @@ export default function Home() {
 
             {authModo === "login" ? (
               <form className="grid gap-3" onSubmit={handleLogin}>
-                <input
-                  className={inputClass}
+                <Input
+                  type="email"
                   placeholder="Email"
                   value={loginForm.email}
-                  onChange={(e) =>
-                    setLoginForm({ ...loginForm, email: e.target.value })
-                  }
+                  onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                  required
                 />
-                <input
-                  className={inputClass}
-                  placeholder="Senha"
+                <Input
                   type="password"
+                  placeholder="Senha"
                   value={loginForm.senha}
-                  onChange={(e) =>
-                    setLoginForm({ ...loginForm, senha: e.target.value })
-                  }
+                  onChange={(e) => setLoginForm({ ...loginForm, senha: e.target.value })}
+                  required
                 />
-                <button
-                  className={`${btnClass} bg-emerald-600 text-white hover:bg-emerald-500`}
-                  type="submit"
-                >
+                <Button type="submit" className="bg-emerald-600 text-white hover:bg-emerald-500">
                   Entrar
-                </button>
+                </Button>
               </form>
             ) : (
               <form className="grid gap-3" onSubmit={handleRegistro}>
-                <input
-                  className={inputClass}
+                <Input
                   placeholder="Nome"
-                  value={registro.nome}
-                  onChange={(e) =>
-                    setRegistro({ ...registro, nome: e.target.value })
-                  }
+                  value={registroForm.nome}
+                  onChange={(e) => setRegistroForm({ ...registroForm, nome: e.target.value })}
+                  required
                 />
-                <input
-                  className={inputClass}
+                <Input
+                  type="email"
                   placeholder="Email"
-                  value={registro.email}
-                  onChange={(e) =>
-                    setRegistro({ ...registro, email: e.target.value })
-                  }
+                  value={registroForm.email}
+                  onChange={(e) => setRegistroForm({ ...registroForm, email: e.target.value })}
+                  required
                 />
-                <input
-                  className={inputClass}
-                  placeholder="Senha"
+                <Input
                   type="password"
-                  value={registro.senha}
-                  onChange={(e) =>
-                    setRegistro({ ...registro, senha: e.target.value })
-                  }
+                  placeholder="Senha"
+                  value={registroForm.senha}
+                  onChange={(e) => setRegistroForm({ ...registroForm, senha: e.target.value })}
+                  required
                 />
-                <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-950">
-                  O cadastro publico cria contas do tipo cliente. Perfis admin e
-                  tecnico devem ser cadastrados por um administrador autenticado.
-                </p>
-                <button
-                  className={`${btnClass} bg-blue-600 text-white hover:bg-blue-500`}
-                  type="submit"
+                <Select
+                  value={registroForm.nivel_acesso}
+                  onChange={(e) => setRegistroForm({ ...registroForm, nivel_acesso: e.target.value })}
                 >
-                  Criar conta
-                </button>
+                  <option value="cliente">Cliente</option>
+                  <option value="admin">Admin</option>
+                  <option value="tecnico">Técnico</option>
+                </Select>
+                <Button type="submit" className="bg-emerald-600 text-white hover:bg-emerald-500">
+                  Registrar
+                </Button>
               </form>
             )}
-          </section>
-        ) : (
-          <>
-            <section className={`${cardClass} flex flex-wrap items-center gap-2`}>
-              <p className="mr-auto text-sm">
-                Logado como <strong>{usuario.nome}</strong> (
-                {usuario.nivel_acesso})
-              </p>
-              <button
-                className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`}
-                onClick={logout}
-              >
-                Sair
-              </button>
-              <button
-                className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`}
-                onClick={carregarEquipamentos}
-              >
-                Equipamentos
-              </button>
-              <button
-                className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`}
-                onClick={listarChamados}
-              >
-                Chamados
-              </button>
-              {(usuario.nivel_acesso === "admin" ||
-                usuario.nivel_acesso === "tecnico") && (
-                <button
-                  className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`}
-                  onClick={listarManutencao}
-                >
-                  Manutencoes
-                </button>
-              )}
-              {usuario.nivel_acesso === "admin" && (
-                <button
-                  className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`}
-                  onClick={carregarDashboardAdmin}
-                >
-                  Dashboard admin
-                </button>
-              )}
-              {(usuario.nivel_acesso === "admin" ||
-                usuario.nivel_acesso === "tecnico") && (
-                <button
-                  className={`${btnClass} border border-zinc-200 bg-white hover:bg-zinc-50`}
-                  onClick={carregarDashboardTecnico}
-                >
-                  Painel tecnico
-                </button>
-              )}
-            </section>
+          </Card>
+        </div>
+      </main>
+    );
+  }
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              {usuario.nivel_acesso === "admin" && (
-                <section className={cardClass}>
-                  <h2 className="mb-3 text-lg font-semibold">Novo equipamento</h2>
-                  <form className="grid gap-2" onSubmit={criarEquipamento}>
-                    <input
-                      className={inputClass}
-                      placeholder="Nome"
-                      value={novoEquipamento.nome}
-                      onChange={(e) =>
-                        setNovoEquipamento({
-                          ...novoEquipamento,
-                          nome: e.target.value,
-                        })
-                      }
-                    />
-                    <input
-                      className={inputClass}
-                      placeholder="Categoria"
-                      value={novoEquipamento.categoria}
-                      onChange={(e) =>
-                        setNovoEquipamento({
-                          ...novoEquipamento,
-                          categoria: e.target.value,
-                        })
-                      }
-                    />
-                    <input
-                      className={inputClass}
-                      placeholder="Patrimonio"
-                      value={novoEquipamento.patrimonio}
-                      onChange={(e) =>
-                        setNovoEquipamento({
-                          ...novoEquipamento,
-                          patrimonio: e.target.value,
-                        })
-                      }
-                    />
-                    <select
-                      className={inputClass}
-                      value={novoEquipamento.status}
-                      onChange={(e) =>
-                        setNovoEquipamento({
-                          ...novoEquipamento,
-                          status: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="operacional">Operacional</option>
-                      <option value="em_manutencao">Em manutencao</option>
-                      <option value="desativado">Desativado</option>
-                    </select>
-                    <textarea
-                      className={inputClass}
-                      placeholder="Descricao"
-                      value={novoEquipamento.descricao}
-                      onChange={(e) =>
-                        setNovoEquipamento({
-                          ...novoEquipamento,
-                          descricao: e.target.value,
-                        })
-                      }
-                    />
-                    <button
-                      className={`${btnClass} bg-indigo-600 text-white hover:bg-indigo-500`}
-                    >
-                      Salvar equipamento
-                    </button>
-                  </form>
-                </section>
-              )}
+  // Dashboard autenticado
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 px-4 py-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        {/* Header */}
+        <header className="rounded-2xl border border-white/40 bg-white/80 p-5 shadow-sm backdrop-blur flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">TechRent</h1>
+            <p className="text-sm text-zinc-600">
+              Bem-vindo, {user?.nome} ({user?.nivel_acesso})
+            </p>
+          </div>
+          <Button onClick={() => logout()} variant="outline">
+            Sair
+          </Button>
+        </header>
 
-              {(usuario.nivel_acesso === "cliente" ||
-                usuario.nivel_acesso === "admin") && (
-                <section className={cardClass}>
-                  <h2 className="mb-3 text-lg font-semibold">Abrir chamado</h2>
-                  <form className="grid gap-2" onSubmit={criarChamado}>
-                    <input
-                      className={inputClass}
-                      placeholder="Titulo"
-                      value={novoChamado.titulo}
-                      onChange={(e) =>
-                        setNovoChamado({
-                          ...novoChamado,
-                          titulo: e.target.value,
-                        })
-                      }
-                    />
-                    <input
-                      className={inputClass}
-                      placeholder="ID do equipamento"
-                      value={novoChamado.equipamento_id}
-                      onChange={(e) =>
-                        setNovoChamado({
-                          ...novoChamado,
-                          equipamento_id: e.target.value,
-                        })
-                      }
-                    />
-                    <select
-                      className={inputClass}
-                      value={novoChamado.prioridade}
-                      onChange={(e) =>
-                        setNovoChamado({
-                          ...novoChamado,
-                          prioridade: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="baixa">Baixa</option>
-                      <option value="media">Media</option>
-                      <option value="alta">Alta</option>
-                    </select>
-                    <textarea
-                      className={inputClass}
-                      placeholder="Descricao"
-                      value={novoChamado.descricao}
-                      onChange={(e) =>
-                        setNovoChamado({
-                          ...novoChamado,
-                          descricao: e.target.value,
-                        })
-                      }
-                    />
-                    <button
-                      className={`${btnClass} bg-orange-600 text-white hover:bg-orange-500`}
-                    >
-                      Abrir chamado
-                    </button>
-                  </form>
-                </section>
-              )}
-
-              {usuario.nivel_acesso === "tecnico" && (
-                <section className={cardClass}>
-                  <h2 className="mb-3 text-lg font-semibold">
-                    Registrar manutencao
-                  </h2>
-                  <form className="grid gap-2" onSubmit={registrarManutencao}>
-                    <input
-                      className={inputClass}
-                      placeholder="ID chamado"
-                      value={novaManutencao.chamado_id}
-                      onChange={(e) =>
-                        setNovaManutencao({
-                          ...novaManutencao,
-                          chamado_id: e.target.value,
-                        })
-                      }
-                    />
-                    <input
-                      className={inputClass}
-                      placeholder="ID equipamento"
-                      value={novaManutencao.equipamento_id}
-                      onChange={(e) =>
-                        setNovaManutencao({
-                          ...novaManutencao,
-                          equipamento_id: e.target.value,
-                        })
-                      }
-                    />
-                    <textarea
-                      className={inputClass}
-                      placeholder="Descricao do reparo"
-                      value={novaManutencao.descricao}
-                      onChange={(e) =>
-                        setNovaManutencao({
-                          ...novaManutencao,
-                          descricao: e.target.value,
-                        })
-                      }
-                    />
-                    <button
-                      className={`${btnClass} bg-teal-600 text-white hover:bg-teal-500`}
-                    >
-                      Registrar
-                    </button>
-                  </form>
-                </section>
-              )}
-            </div>
-
-            <section className="grid gap-4 lg:grid-cols-2">
-              <div className={cardClass}>
-                <h2 className="mb-2 text-lg font-semibold">Equipamentos</h2>
-                <pre className="max-h-80 overflow-auto rounded-xl bg-zinc-950 p-3 text-xs text-zinc-100">
-                  {JSON.stringify(equipamentos, null, 2)}
-                </pre>
-              </div>
-              <div className={cardClass}>
-                <h2 className="mb-2 text-lg font-semibold">Chamados</h2>
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {(usuario.nivel_acesso === "admin" ||
-                    usuario.nivel_acesso === "tecnico") && (
-                    <>
-                      <button
-                        className={`${btnClass} border border-zinc-300 bg-white hover:bg-zinc-50`}
-                        onClick={() =>
-                          atualizarStatus(prompt("ID do chamado"), "em_atendimento")
-                        }
-                      >
-                        Em atendimento
-                      </button>
-                      <button
-                        className={`${btnClass} border border-zinc-300 bg-white hover:bg-zinc-50`}
-                        onClick={() =>
-                          atualizarStatus(prompt("ID do chamado"), "cancelado")
-                        }
-                      >
-                        Cancelar
-                      </button>
-                    </>
-                  )}
-                </div>
-                {(usuario.nivel_acesso === "admin" ||
-                  usuario.nivel_acesso === "tecnico") && (
-                  <p className="mb-2 text-xs text-zinc-600">
-                    A resolucao do chamado acontece no registro de manutencao,
-                    para manter o historico tecnico consistente.
-                  </p>
-                )}
-                <pre className="max-h-80 overflow-auto rounded-xl bg-zinc-950 p-3 text-xs text-zinc-100">
-                  {JSON.stringify(chamados, null, 2)}
-                </pre>
-              </div>
-              <div className={cardClass}>
-                <h2 className="mb-2 text-lg font-semibold">
-                  Historico de manutencao
-                </h2>
-                <pre className="max-h-80 overflow-auto rounded-xl bg-zinc-950 p-3 text-xs text-zinc-100">
-                  {JSON.stringify(manutencoes, null, 2)}
-                </pre>
-              </div>
-              <div className={cardClass}>
-                <h2 className="mb-2 text-lg font-semibold">Dashboard</h2>
-                <pre className="max-h-80 overflow-auto rounded-xl bg-zinc-950 p-3 text-xs text-zinc-100">
-                  {JSON.stringify(dashboard, null, 2)}
-                </pre>
-              </div>
-            </section>
-          </>
+        {/* Dashboard Stats */}
+        {dashboard && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {dashboard.total_equipamentos && (
+              <StatsCard title="Total de Equipamentos" value={dashboard.total_equipamentos} />
+            )}
+            {dashboard.equipamentos_disponiveis && (
+              <StatsCard title="Disponíveis" value={dashboard.equipamentos_disponiveis} />
+            )}
+            {dashboard.chamados_abertos && (
+              <StatsCard title="Chamados Abertos" value={dashboard.chamados_abertos} />
+            )}
+            {dashboard.manutencoes_pendentes && (
+              <StatsCard title="Manutenções Pendentes" value={dashboard.manutencoes_pendentes} />
+            )}
+          </div>
         )}
 
-        {mensagem && (
-          <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-950 shadow-sm">
-            {mensagem}
-          </p>
+        {/* Equipamentos (Admin) */}
+        {user?.nivel_acesso === "admin" && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Equipamentos</CardTitle>
+                <Button onClick={() => setModalEquipamento(true)} size="sm">
+                  + Novo
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {equipamentos.length === 0 ? (
+                <EmptyState
+                  title="Nenhum equipamento"
+                  description="Comece criando um novo equipamento"
+                  action={<Button onClick={() => setModalEquipamento(true)}>Criar Equipamento</Button>}
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-200">
+                        <th className="text-left px-4 py-3 font-semibold">Nome</th>
+                        <th className="text-left px-4 py-3 font-semibold">Categoria</th>
+                        <th className="text-left px-4 py-3 font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {equipamentos.map((eq) => (
+                        <tr key={eq.id} className="border-b border-zinc-200 hover:bg-zinc-50">
+                          <td className="px-4 py-3">{eq.nome}</td>
+                          <td className="px-4 py-3">{eq.categoria}</td>
+                          <td className="px-4 py-3">
+                            <Badge status={eq.status}>{eq.status}</Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Chamados */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Chamados</CardTitle>
+              <Button onClick={() => setModalChamado(true)} size="sm">
+                + Novo
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {chamados.length === 0 ? (
+              <EmptyState
+                title="Nenhum chamado"
+                description="Comece criando um novo chamado"
+                action={<Button onClick={() => setModalChamado(true)}>Criar Chamado</Button>}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200">
+                      <th className="text-left px-4 py-3 font-semibold">Título</th>
+                      <th className="text-left px-4 py-3 font-semibold">Prioridade</th>
+                      <th className="text-left px-4 py-3 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chamados.map((ch) => (
+                      <tr key={ch.id} className="border-b border-zinc-200 hover:bg-zinc-50">
+                        <td className="px-4 py-3">{ch.titulo}</td>
+                        <td className="px-4 py-3">
+                          <Badge status={ch.prioridade}>{ch.prioridade}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge status={ch.status}>{ch.status}</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Manutenção (Técnico) */}
+        {user?.nivel_acesso === "tecnico" && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Manutenção</CardTitle>
+                <Button onClick={() => setModalManutencao(true)} size="sm">
+                  + Registrar
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {manutencoes.length === 0 ? (
+                <EmptyState
+                  title="Nenhuma manutenção registrada"
+                  description="Comece registrando uma manutenção"
+                  action={<Button onClick={() => setModalManutencao(true)}>Registrar Manutenção</Button>}
+                />
+              ) : (
+                <div className="space-y-3">
+                  {manutencoes.map((m) => (
+                    <div key={m.id} className="p-4 border border-zinc-200 rounded-lg">
+                      <p className="font-semibold text-zinc-900">{m.equipamento}</p>
+                      <p className="text-sm text-zinc-600 mt-1">{m.descricao}</p>
+                      <p className="text-xs text-zinc-500 mt-2">
+                        {new Date(m.data_manutencao).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
       </div>
+
+      {/* Modal Equipamento */}
+      <ModalWithFooter
+        isOpen={modalEquipamento}
+        onClose={() => setModalEquipamento(false)}
+        title="Novo Equipamento"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setModalEquipamento(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCriarEquipamento}>Criar</Button>
+          </>
+        }
+      >
+        <form className="space-y-4" onSubmit={handleCriarEquipamento}>
+          <FormGroup label="Nome">
+            <Input
+              value={novoEquipamento.nome}
+              onChange={(e) => setNovoEquipamento({ ...novoEquipamento, nome: e.target.value })}
+              required
+            />
+          </FormGroup>
+          <FormGroup label="Categoria">
+            <Input
+              value={novoEquipamento.categoria}
+              onChange={(e) => setNovoEquipamento({ ...novoEquipamento, categoria: e.target.value })}
+              required
+            />
+          </FormGroup>
+          <FormGroup label="Descrição">
+            <Textarea
+              value={novoEquipamento.descricao}
+              onChange={(e) => setNovoEquipamento({ ...novoEquipamento, descricao: e.target.value })}
+            />
+          </FormGroup>
+        </form>
+      </ModalWithFooter>
+
+      {/* Modal Chamado */}
+      <ModalWithFooter
+        isOpen={modalChamado}
+        onClose={() => setModalChamado(false)}
+        title="Novo Chamado"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setModalChamado(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCriarChamado}>Criar</Button>
+          </>
+        }
+      >
+        <form className="space-y-4" onSubmit={handleCriarChamado}>
+          <FormGroup label="Título">
+            <Input
+              value={novoChamado.titulo}
+              onChange={(e) => setNovoChamado({ ...novoChamado, titulo: e.target.value })}
+              required
+            />
+          </FormGroup>
+          <FormGroup label="Descrição">
+            <Textarea
+              value={novoChamado.descricao}
+              onChange={(e) => setNovoChamado({ ...novoChamado, descricao: e.target.value })}
+              required
+            />
+          </FormGroup>
+          <FormGroup label="Equipamento">
+            <Select
+              value={novoChamado.equipamento_id}
+              onChange={(e) => setNovoChamado({ ...novoChamado, equipamento_id: e.target.value })}
+              required
+            >
+              <option value="">Selecione um equipamento</option>
+              {equipamentos.map((eq) => (
+                <option key={eq.id} value={eq.id}>
+                  {eq.nome}
+                </option>
+              ))}
+            </Select>
+          </FormGroup>
+          <FormGroup label="Prioridade">
+            <Select
+              value={novoChamado.prioridade}
+              onChange={(e) => setNovoChamado({ ...novoChamado, prioridade: e.target.value })}
+            >
+              <option value="baixa">Baixa</option>
+              <option value="media">Média</option>
+              <option value="alta">Alta</option>
+            </Select>
+          </FormGroup>
+        </form>
+      </ModalWithFooter>
+
+      {/* Modal Manutenção */}
+      <ModalWithFooter
+        isOpen={modalManutencao}
+        onClose={() => setModalManutencao(false)}
+        title="Registrar Manutenção"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setModalManutencao(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleRegistrarManutencao}>Registrar</Button>
+          </>
+        }
+      >
+        <form className="space-y-4" onSubmit={handleRegistrarManutencao}>
+          <FormGroup label="Equipamento">
+            <Select
+              value={novaManutencao.equipamento_id}
+              onChange={(e) => setNovaManutencao({ ...novaManutencao, equipamento_id: e.target.value })}
+              required
+            >
+              <option value="">Selecione um equipamento</option>
+              {equipamentos.map((eq) => (
+                <option key={eq.id} value={eq.id}>
+                  {eq.nome}
+                </option>
+              ))}
+            </Select>
+          </FormGroup>
+          <FormGroup label="Chamado">
+            <Select
+              value={novaManutencao.chamado_id}
+              onChange={(e) => setNovaManutencao({ ...novaManutencao, chamado_id: e.target.value })}
+              required
+            >
+              <option value="">Selecione um chamado</option>
+              {chamados.map((ch) => (
+                <option key={ch.id} value={ch.id}>
+                  {ch.titulo}
+                </option>
+              ))}
+            </Select>
+          </FormGroup>
+          <FormGroup label="Descrição do Reparo">
+            <Textarea
+              value={novaManutencao.descricao}
+              onChange={(e) => setNovaManutencao({ ...novaManutencao, descricao: e.target.value })}
+              required
+            />
+          </FormGroup>
+        </form>
+      </ModalWithFooter>
     </main>
   );
 }

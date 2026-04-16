@@ -11,7 +11,8 @@ import { Card } from "@/components/ui/Card";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
 
 export default function Home() {
-  const { user, token, login, loading } = useAuth();
+  const { user, loading } = useAuth();
+  const { login } = useAuth();
   const router = useRouter();
   const { showSuccess, showError } = useToast();
 
@@ -27,7 +28,7 @@ export default function Home() {
 
   // Redirecionar para dashboard se já autenticado
   useEffect(() => {
-    if (user && !loading) {
+    if (!loading && user) {
       // Redirecionar para dashboard específico por role
       if (user.nivel_acesso === "admin") {
         router.push("/dashboard/admin");
@@ -44,14 +45,28 @@ export default function Home() {
     try {
       setIsSubmitting(true);
       const data = await authAPI.login(loginForm.email, loginForm.senha);
+      
+      // Extrair dados do usuário do token JWT
       const payload = data.usuario || JSON.parse(atob(data.token.split(".")[1]));
+      
+      // Fazer login e atualizar contexto
       login(payload, data.token);
+      
       showSuccess("Login realizado com sucesso!");
       setLoginForm({ email: "", senha: "" });
-      // Redirecionamento automático via useEffect
+      
+      // Redirecionar imediatamente baseado no role
+      setTimeout(() => {
+        if (payload.nivel_acesso === "admin") {
+          router.push("/dashboard/admin");
+        } else if (payload.nivel_acesso === "tecnico") {
+          router.push("/dashboard/painel-tecnico");
+        } else {
+          router.push("/dashboard/chamados");
+        }
+      }, 500); // Pequeno delay para garantir que o contexto foi atualizado
     } catch (error) {
       showError(error.message);
-    } finally {
       setIsSubmitting(false);
     }
   }
@@ -89,7 +104,14 @@ export default function Home() {
 
   // Se já está autenticado, não mostrar login
   if (user) {
-    return null;
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-zinc-600">Redirecionando...</p>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -116,6 +138,7 @@ export default function Home() {
                   : "text-zinc-600"
               }`}
               onClick={() => setAuthModo("login")}
+              disabled={isSubmitting}
             >
               Login
             </button>
@@ -126,6 +149,7 @@ export default function Home() {
                   : "text-zinc-600"
               }`}
               onClick={() => setAuthModo("registro")}
+              disabled={isSubmitting}
             >
               Registro
             </button>

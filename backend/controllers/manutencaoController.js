@@ -1,68 +1,110 @@
-// =============================================
-// CONTROLLER DE HISTÓRICO DE MANUTENÇÃO
-// =============================================
-// TODO (alunos): implementar cada função abaixo.
+const { pool } = require('../config/database');
+const { paraIdInteiro, normalizarTexto } = require('../constants/workflow');
 
-const db = require('../config/database');
-
-// GET /manutencao - lista todos os registros de manutenção (admin/técnico)
 const listar = async (req, res) => {
   try {
-    const registros = await db.query(`
+    const [registros] = await pool.query(`
       SELECT
         hm.*,
         c.titulo AS chamado_titulo,
+        c.status AS chamado_status,
         e.nome AS equipamento_nome,
+        e.patrimonio AS equipamento_patrimonio,
         u.nome AS tecnico_nome
       FROM historico_manutencao hm
       JOIN chamados c ON hm.chamado_id = c.id
       JOIN equipamentos e ON hm.equipamento_id = e.id
       JOIN usuarios u ON hm.tecnico_id = u.id
-      ORDER BY hm.registrado_em DESC
+      ORDER BY hm.registrado_em DESC, hm.id DESC
     `);
 
     return res.status(200).json(registros);
   } catch (error) {
-    return res.status(500).json({ erro: error.message });
+    return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
   }
 };
 
-// POST /manutencao - registra um reparo em um equipamento (técnico)
-// Body esperado: { chamado_id, equipamento_id, descricao }
-// Após registrar, atualizar chamados.status para 'resolvido'
-// e equipamentos.status para 'operacional'
 const registrar = async (req, res) => {
+  const chamadoId = paraIdInteiro(req.body.chamado_id);
+  const equipamentoId = paraIdInteiro(req.body.equipamento_id);
+  const descricao = normalizarTexto(req.body.descricao);
+  const tecnicoId = req.usuario.id;
+
+  if (!chamadoId || !equipamentoId || !descricao) {
+    return res.status(400).json({
+      mensagem: 'Campos chamado_id, equipamento_id e descricao sao obrigatorios.',
+    });
+  }
+
+  const connection = await pool.getConnection();
+
   try {
-    const { chamado_id, equipamento_id, descricao } = req.body;
-    const tecnico_id = req.usuario.id;
+    await connection.beginTransaction();
 
-    if (!chamado_id || !equipamento_id || !descricao) {
-      return res.status(400).json({ mensagem: 'Campos chamado_id, equipamento_id e descricao são obrigatórios.' });
+    const [chamados] = await connection.execute(
+      'SELECT * FROM chamados WHERE id = ? FOR UPDATE',
+      [chamadoId]
+    );
+
+    const chamado = chamados[0];
+    if (!chamado) {
+      await connection.rollback();
+      return res.status(404).json({ mensagem: 'Chamado nao encontrado.' });
     }
 
-    const chamado = await db.query('SELECT * FROM chamados WHERE id = ?', [chamado_id]);
-    if (chamado.length === 0) {
-      return res.status(404).json({ mensagem: 'Chamado não encontrado' });
+    if (chamado.equipamento_id !== equipamentoId) {
+      await connection.rollback();
+      return res.status(400).json({
+        mensagem: 'O equipamento informado nao corresponde ao equipamento do chamado.',
+      });
     }
 
-    await db.query(
-      `INSERT INTO historico_manutencao (chamado_id, equipamento_id, tecnico_id, descricao)
-       VALUES (?, ?, ?, ?)`,
-      [chamado_id, equipamento_id, tecnico_id, descricao]
+    if (['resolvido', 'cancelado'].includes(chamado.status)) {
+      await connection.rollback();
+      return res.status(400).json({
+        mensagem: 'Este chamado ja foi encerrado e nao pode receber novo registro de manutencao.',
+      });
+    }
+
+    if (chamado.tecnico_id && chamado.tecnico_id !== tecnicoId) {
+      await connection.rollback();
+      return res.status(403).json({
+        mensagem: 'Este chamado ja esta atribuido a outro tecnico.',
+      });
+    }
+
+    await connection.execute(
+      `
+        INSERT INTO historico_manutencao (chamado_id, equipamento_id, tecnico_id, descricao)
+        VALUES (?, ?, ?, ?)
+      `,
+      [chamadoId, equipamentoId, tecnicoId, descricao]
     );
 
-    await db.query(
-      `UPDATE chamados SET status = 'resolvido', tecnico_id = ? WHERE id = ?`,
-      [tecnico_id, chamado_id]
-    );
-    await db.query(
-      `UPDATE equipamentos SET status = 'operacional' WHERE id = ?`,
-      [equipamento_id]
+    await connection.execute(
+      `
+        UPDATE chamados
+        SET status = 'resolvido', tecnico_id = ?
+        WHERE id = ?
+      `,
+      [tecnicoId, chamadoId]
     );
 
-    return res.status(201).json({ mensagem: 'Manutenção registrada com sucesso' });
+    await connection.execute(
+      "UPDATE equipamentos SET status = 'operacional' WHERE id = ?",
+      [equipamentoId]
+    );
+
+    await connection.commit();
+
+    return res.status(201).json({
+      mensagem: 'Manutencao registrada com sucesso e chamado resolvido.',
+    });
   } catch (error) {
-    return res.status(500).json({ erro: error.message });
+    await connection.rollback();
+    return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
+  } finally {
+    connection.release();
   }
 };
 

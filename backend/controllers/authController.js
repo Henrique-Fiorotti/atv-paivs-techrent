@@ -5,6 +5,16 @@ const { generateJWT } = require('../utils/jwtUtils');
 const NIVEIS_ACESSO = ['cliente', 'admin', 'tecnico'];
 
 class AuthController {
+  static handleInfraError(error, res) {
+    if (error.code === 'ECONNREFUSED') {
+      return res.status(503).json({
+        mensagem: 'Banco de dados indisponivel. Inicie o MySQL e tente novamente.',
+      });
+    }
+
+    return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
+  }
+
   static async register(req, res) {
     try {
       const nome = req.body.nome?.trim();
@@ -46,7 +56,7 @@ class AuthController {
       });
     } catch (error) {
       console.error('Erro ao registrar usuario:', error);
-      return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
+      return AuthController.handleInfraError(error, res);
     }
   }
 
@@ -85,7 +95,7 @@ class AuthController {
       });
     } catch (error) {
       console.error('Erro ao fazer login:', error);
-      return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
+      return AuthController.handleInfraError(error, res);
     }
   }
 }

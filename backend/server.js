@@ -29,6 +29,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api', apiRoutes);
+app.use(apiRoutes);
 
 app.get('/', (req, res) => {
   res.json({ mensagem: 'TechRent API esta rodando!' });

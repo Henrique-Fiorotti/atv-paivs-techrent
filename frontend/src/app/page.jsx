@@ -123,8 +123,8 @@ export default function Home() {
         
         <div className="relative z-10">
           <div className="flex items-center justify-center gap-4 mb-8">
-            <div className="p-4 bg-linear-to-br from-blue-500 to-purple-600 rounded-2xl shadow-2xl">
-              <Zap size={40} className="text-white" />
+            <div className="p-4 bg-linear-to-b rounded-2xl">
+              <img src="/techrent_logo.svg" alt="" />
             </div>
           </div>
           
@@ -133,7 +133,7 @@ export default function Home() {
             Plataforma moderna de gestão de chamados e manutenção de TI
           </p>
           
-          <div className="space-y-4 mt-12">
+          <div className="space-y-4 mt-12 text-center flex flex-col items-center">
             <div className="flex items-center gap-3 text-slate-300">
               <Zap size={20} className="text-blue-400" />
               <span>Chamados rápidos e eficientes</span>
@@ -318,7 +318,7 @@ export default function Home() {
               </p>
             </form>
           )}
-          
+
         </div>
       </div>
     </main>

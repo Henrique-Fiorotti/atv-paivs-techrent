@@ -1,23 +1,14 @@
-// =============================================
-// ROTAS DE EQUIPAMENTOS
-// =============================================
-// Todas as rotas aqui exigem autenticação (autenticar).
-// Algumas exigem nível de acesso específico (autorizar).
-
 const express = require('express');
-const router = express.Router();
 const { autenticar, autorizar } = require('../middlewares/auth');
-const ctrl = require('../controllers/equipamentosController');
+const EquipamentoController = require('../controllers/equipamentosController');
 
-// Qualquer usuário autenticado pode listar equipamentos
-router.get('/', autenticar, ctrl.listar);
+const router = express.Router();
 
-// Qualquer usuário autenticado pode ver um equipamento específico
-router.get('/:id', autenticar, ctrl.buscarPorId);
-
-// Apenas admin pode criar, atualizar ou remover equipamentos
-router.post('/', autenticar, autorizar('admin'), ctrl.criar);
-router.put('/:id', autenticar, autorizar('admin'), ctrl.atualizar);
-router.delete('/:id', autenticar, autorizar('admin'), ctrl.remover);
+router.get('/', autenticar, EquipamentoController.list);
+router.get('/:id', autenticar, EquipamentoController.findById);
+router.post('/', autenticar, autorizar('admin'), EquipamentoController.create);
+router.put('/:id', autenticar, autorizar('admin'), EquipamentoController.update);
+router.put('/:id/status', autenticar, autorizar('admin', 'tecnico'), EquipamentoController.updateStatus);
+router.delete('/:id', autenticar, autorizar('admin'), EquipamentoController.delete);
 
 module.exports = router;

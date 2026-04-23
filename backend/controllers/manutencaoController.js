@@ -1,111 +1,115 @@
-const { pool } = require('../config/database');
-const { paraIdInteiro, normalizarTexto } = require('../constants/workflow');
+const { withTransaction } = require('../config/database');
+const ChamadaModel = require('../models/chamadosModel');
+const EquipamentoModel = require('../models/equipamentosModel');
+const ManutencaoModel = require('../models/manutencaoModel');
 
-const listar = async (req, res) => {
-  try {
-    const [registros] = await pool.query(`
-      SELECT
-        hm.*,
-        c.titulo AS chamado_titulo,
-        c.status AS chamado_status,
-        e.nome AS equipamento_nome,
-        e.patrimonio AS equipamento_patrimonio,
-        u.nome AS tecnico_nome
-      FROM historico_manutencao hm
-      JOIN chamados c ON hm.chamado_id = c.id
-      JOIN equipamentos e ON hm.equipamento_id = e.id
-      JOIN usuarios u ON hm.tecnico_id = u.id
-      ORDER BY hm.registrado_em DESC, hm.id DESC
-    `);
+class ManutencaoController {
+  static async list(req, res) {
+    try {
+      if (req.query.chamado_id) {
+        const historico = await ManutencaoModel.findByChamadoId(req.query.chamado_id);
+        return res.status(200).json(historico);
+      }
 
-    return res.status(200).json(registros);
-  } catch (error) {
-    return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
-  }
-};
-
-const registrar = async (req, res) => {
-  const chamadoId = paraIdInteiro(req.body.chamado_id);
-  const equipamentoId = paraIdInteiro(req.body.equipamento_id);
-  const descricao = normalizarTexto(req.body.descricao);
-  const tecnicoId = req.usuario.id;
-
-  if (!chamadoId || !equipamentoId || !descricao) {
-    return res.status(400).json({
-      mensagem: 'Campos chamado_id, equipamento_id e descricao sao obrigatorios.',
-    });
+      const manutencoes = await ManutencaoModel.findAll();
+      return res.status(200).json(manutencoes);
+    } catch (error) {
+      console.error('Erro ao listar manutencoes:', error);
+      return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
+    }
   }
 
-  const connection = await pool.getConnection();
+  static async register(req, res) {
+    try {
+      const { chamado_id, equipamento_id, descricao, status_equipamento } = req.body;
 
-  try {
-    await connection.beginTransaction();
+      if (!chamado_id || !equipamento_id || !descricao) {
+        return res.status(400).json({
+          mensagem: 'Chamado, equipamento e descricao sao obrigatorios.',
+        });
+      }
 
-    const [chamados] = await connection.execute(
-      'SELECT * FROM chamados WHERE id = ? FOR UPDATE',
-      [chamadoId]
-    );
+      const chamado = await ChamadaModel.findById(chamado_id);
+      if (!chamado) {
+        return res.status(404).json({ mensagem: 'Chamado nao encontrado.' });
+      }
 
-    const chamado = chamados[0];
-    if (!chamado) {
-      await connection.rollback();
-      return res.status(404).json({ mensagem: 'Chamado nao encontrado.' });
-    }
+      if (Number(chamado.equipamento_id) !== Number(equipamento_id)) {
+        return res.status(409).json({
+          mensagem: 'O equipamento informado nao corresponde ao chamado selecionado.',
+        });
+      }
 
-    if (chamado.equipamento_id !== equipamentoId) {
-      await connection.rollback();
-      return res.status(400).json({
-        mensagem: 'O equipamento informado nao corresponde ao equipamento do chamado.',
+      if (!['aberto', 'em_atendimento'].includes(chamado.status)) {
+        return res.status(400).json({ mensagem: 'Este chamado nao pode receber manutencao.' });
+      }
+
+      if (
+        req.usuario.nivel_acesso === 'tecnico' &&
+        chamado.tecnico_id &&
+        chamado.tecnico_id !== req.usuario.id
+      ) {
+        return res.status(403).json({
+          mensagem: 'Voce so pode registrar manutencao para chamados atribuidos a voce.',
+        });
+      }
+
+      const manutencaoId = await withTransaction(async (connection) => {
+        if (!chamado.tecnico_id) {
+          await ChamadaModel.setTecnico(
+            { id: chamado_id, tecnico_id: req.usuario.id },
+            connection
+          );
+        }
+
+        const novoId = await ManutencaoModel.create(
+          {
+            chamado_id: Number(chamado_id),
+            equipamento_id: Number(equipamento_id),
+            tecnico_id: req.usuario.id,
+            descricao: descricao.trim(),
+          },
+          connection
+        );
+
+        await ChamadaModel.updateStatus({ id: chamado_id, status: 'resolvido' }, connection);
+        await EquipamentoModel.updateStatus(
+          { id: Number(equipamento_id), status: status_equipamento || 'operacional' },
+          connection
+        );
+
+        return novoId;
       });
-    }
 
-    if (['resolvido', 'cancelado'].includes(chamado.status)) {
-      await connection.rollback();
-      return res.status(400).json({
-        mensagem: 'Este chamado ja foi encerrado e nao pode receber novo registro de manutencao.',
+      return res.status(201).json({
+        mensagem: 'Manutencao registrada com sucesso.',
+        manutencao_id: manutencaoId,
       });
+    } catch (error) {
+      console.error('Erro ao registrar manutencao:', error);
+      return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
     }
-
-    if (chamado.tecnico_id && chamado.tecnico_id !== tecnicoId) {
-      await connection.rollback();
-      return res.status(403).json({
-        mensagem: 'Este chamado ja esta atribuido a outro tecnico.',
-      });
-    }
-
-    await connection.execute(
-      `
-        INSERT INTO historico_manutencao (chamado_id, equipamento_id, tecnico_id, descricao)
-        VALUES (?, ?, ?, ?)
-      `,
-      [chamadoId, equipamentoId, tecnicoId, descricao]
-    );
-
-    await connection.execute(
-      `
-        UPDATE chamados
-        SET status = 'resolvido', tecnico_id = ?
-        WHERE id = ?
-      `,
-      [tecnicoId, chamadoId]
-    );
-
-    await connection.execute(
-      "UPDATE equipamentos SET status = 'operacional' WHERE id = ?",
-      [equipamentoId]
-    );
-
-    await connection.commit();
-
-    return res.status(201).json({
-      mensagem: 'Manutencao registrada com sucesso e chamado resolvido.',
-    });
-  } catch (error) {
-    await connection.rollback();
-    return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
-  } finally {
-    connection.release();
   }
-};
 
-module.exports = { listar, registrar };
+  static async updateDescription(req, res) {
+    try {
+      const { descricao } = req.body;
+
+      if (!descricao) {
+        return res.status(400).json({ mensagem: 'A nova descricao e obrigatoria.' });
+      }
+
+      const atualizado = await ManutencaoModel.updateDescription(req.params.id, descricao.trim());
+      if (!atualizado) {
+        return res.status(404).json({ mensagem: 'Registro de manutencao nao encontrado.' });
+      }
+
+      return res.status(200).json({ mensagem: 'Descricao atualizada com sucesso.' });
+    } catch (error) {
+      console.error('Erro ao atualizar manutencao:', error);
+      return res.status(500).json({ mensagem: 'Erro interno do servidor.' });
+    }
+  }
+}
+
+module.exports = ManutencaoController;

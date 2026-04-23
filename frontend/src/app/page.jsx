@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
-import { authAPI } from "@/lib/api";
+import { API_BASE_URL, authAPI } from "@/lib/api";
 import { Input, Button, Select } from "@/components/ui/Form";
 import { Card } from "@/components/ui/Card";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+import { Lock, Mail, User, Zap, ArrowRight, Shield } from "lucide-react";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -93,10 +92,10 @@ export default function Home() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 flex items-center justify-center">
+      <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-zinc-600">Carregando...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-slate-700 border-t-blue-500 mx-auto mb-4"></div>
+          <p className="text-slate-400 font-medium">Carregando...</p>
         </div>
       </main>
     );
@@ -105,149 +104,224 @@ export default function Home() {
   // Se já está autenticado, não mostrar login
   if (user) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 flex items-center justify-center">
+      <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-zinc-600">Redirecionando...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-slate-700 border-t-purple-500 mx-auto mb-4"></div>
+          <p className="text-slate-400 font-medium">Redirecionando...</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 px-4 py-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        {/* Header */}
-        <header className="rounded-2xl border border-white/40 bg-white/80 p-5 shadow-sm backdrop-blur flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">TechRent</h1>
-            <p className="text-sm text-zinc-600">Plataforma de chamados, manutenção e gestão de ativos</p>
+    <main className="min-h-screen flex flex-col lg:flex-row">
+      {/* Left Side - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 lg:flex-col lg:items-center lg:justify-center lg:bg-linear-to-br lg:from-slate-900 lg:to-blue-900 lg:p-12 lg:relative lg:overflow-hidden">
+        {/* Background decorations */}
+        <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+        
+        <div className="relative z-10">
+          <div className="flex items-center justify-center gap-4 mb-8">
+            <div className="p-4 bg-linear-to-br from-blue-500 to-purple-600 rounded-2xl shadow-2xl">
+              <Zap size={40} className="text-white" />
+            </div>
           </div>
-          <div className="rounded-full bg-zinc-900/90 px-3 py-1 text-xs font-medium text-white">
-            API: {API_URL}
+          
+          <h1 className="text-5xl font-bold text-white mb-4 text-center">TechRent</h1>
+          <p className="text-xl text-blue-200 text-center mb-8 max-w-md">
+            Plataforma moderna de gestão de chamados e manutenção de TI
+          </p>
+          
+          <div className="space-y-4 mt-12">
+            <div className="flex items-center gap-3 text-slate-300">
+              <Zap size={20} className="text-blue-400" />
+              <span>Chamados rápidos e eficientes</span>
+            </div>
+            <div className="flex items-center gap-3 text-slate-300">
+              <Shield size={20} className="text-purple-400" />
+              <span>Rastreamento completo de ativos</span>
+            </div>
+            <div className="flex items-center gap-3 text-slate-300">
+              <User size={20} className="text-cyan-400" />
+              <span>Gestão de técnicos e equipes</span>
+            </div>
           </div>
-        </header>
+        </div>
+      </div>
 
-        {/* Auth Card */}
-        <Card className="mx-auto w-full max-w-lg">
-          <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl bg-zinc-100 p-1">
+      {/* Right Side - Auth Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-8 lg:p-12 bg-linear-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="w-full max-w-md animate-fadeIn">
+          {/* Mobile Branding */}
+          <div className="lg:hidden mb-8 text-center">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="p-3 bg-linear-to-br from-blue-500 to-purple-600 rounded-xl">
+                <Zap size={32} className="text-white" />
+              </div>
+              <h1 className="text-4xl font-bold text-white">TechRent</h1>
+            </div>
+            <p className="text-slate-400 text-sm">Gestão de chamados e manutenção de TI</p>
+          </div>
+
+          {/* Tab Buttons */}
+          <div className="mb-8 grid grid-cols-2 gap-2 bg-slate-800/50 rounded-xl p-1.5 border border-slate-700/50">
             <button
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all ${
                 authModo === "login"
-                  ? "bg-white shadow text-zinc-900"
-                  : "text-zinc-600"
+                  ? "bg-linear-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/20"
+                  : "text-slate-400 hover:text-slate-200"
               }`}
               onClick={() => setAuthModo("login")}
               disabled={isSubmitting}
             >
-              Login
+              Entrar
             </button>
             <button
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all ${
                 authModo === "registro"
-                  ? "bg-white shadow text-zinc-900"
-                  : "text-zinc-600"
+                  ? "bg-linear-to-r from-purple-600 to-purple-700 text-white shadow-lg shadow-purple-500/20"
+                  : "text-slate-400 hover:text-slate-200"
               }`}
               onClick={() => setAuthModo("registro")}
               disabled={isSubmitting}
             >
-              Registro
+              Criar Conta
             </button>
           </div>
 
+          {/* Auth Form */}
           {authModo === "login" ? (
-            <form className="grid gap-3" onSubmit={handleLogin}>
-              <Input
-                type="email"
-                placeholder="Email"
-                value={loginForm.email}
-                onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                required
-                disabled={isSubmitting}
-              />
-              <Input
-                type="password"
-                placeholder="Senha"
-                value={loginForm.senha}
-                onChange={(e) => setLoginForm({ ...loginForm, senha: e.target.value })}
-                required
-                disabled={isSubmitting}
-              />
+            <form className="space-y-4" onSubmit={handleLogin}>
+              <div>
+                <label className="block text-sm font-semibold text-slate-200 mb-2">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3.5 text-slate-500" size={18} />
+                  <Input
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={loginForm.email}
+                    onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                    required
+                    disabled={isSubmitting}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-200 mb-2">Senha</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3.5 text-slate-500" size={18} />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={loginForm.senha}
+                    onChange={(e) => setLoginForm({ ...loginForm, senha: e.target.value })}
+                    required
+                    disabled={isSubmitting}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
               <Button 
                 type="submit" 
-                className="bg-emerald-600 text-white hover:bg-emerald-500"
+                className="w-full bg-linear-to-r from-blue-600 to-blue-700 text-white hover:from-blue-500 hover:to-blue-600 flex items-center justify-center gap-2"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Entrando..." : "Entrar"}
+                {isSubmitting ? "Entrando..." : <>
+                  Entrar
+                  <ArrowRight size={18} />
+                </>}
               </Button>
+
+              <p className="text-center text-sm text-slate-400 mt-4">
+                Não tem conta? <span onClick={() => setAuthModo("registro")} className="text-blue-400 hover:text-blue-300 cursor-pointer font-semibold">Crie uma agora</span>
+              </p>
             </form>
           ) : (
-            <form className="grid gap-3" onSubmit={handleRegistro}>
-              <Input
-                placeholder="Nome"
-                value={registroForm.nome}
-                onChange={(e) => setRegistroForm({ ...registroForm, nome: e.target.value })}
-                required
-                disabled={isSubmitting}
-              />
-              <Input
-                type="email"
-                placeholder="Email"
-                value={registroForm.email}
-                onChange={(e) => setRegistroForm({ ...registroForm, email: e.target.value })}
-                required
-                disabled={isSubmitting}
-              />
-              <Input
-                type="password"
-                placeholder="Senha"
-                value={registroForm.senha}
-                onChange={(e) => setRegistroForm({ ...registroForm, senha: e.target.value })}
-                required
-                disabled={isSubmitting}
-              />
-              <Select
-                value={registroForm.nivel_acesso}
-                onChange={(e) => setRegistroForm({ ...registroForm, nivel_acesso: e.target.value })}
-                disabled={isSubmitting}
-              >
-                <option value="cliente">Cliente</option>
-                <option value="admin">Admin</option>
-                <option value="tecnico">Técnico</option>
-              </Select>
+            <form className="space-y-4" onSubmit={handleRegistro}>
+              <div>
+                <label className="block text-sm font-semibold text-slate-200 mb-2">Nome</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3.5 text-slate-500" size={18} />
+                  <Input
+                    placeholder="Seu nome completo"
+                    value={registroForm.nome}
+                    onChange={(e) => setRegistroForm({ ...registroForm, nome: e.target.value })}
+                    required
+                    disabled={isSubmitting}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-200 mb-2">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3.5 text-slate-500" size={18} />
+                  <Input
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={registroForm.email}
+                    onChange={(e) => setRegistroForm({ ...registroForm, email: e.target.value })}
+                    required
+                    disabled={isSubmitting}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-200 mb-2">Senha</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3.5 text-slate-500" size={18} />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={registroForm.senha}
+                    onChange={(e) => setRegistroForm({ ...registroForm, senha: e.target.value })}
+                    required
+                    disabled={isSubmitting}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-200 mb-2">Tipo de Conta</label>
+                <Select
+                  value={registroForm.nivel_acesso}
+                  onChange={(e) => setRegistroForm({ ...registroForm, nivel_acesso: e.target.value })}
+                  disabled={isSubmitting}
+                >
+                  <option value="cliente">Cliente</option>
+                  <option value="tecnico">Técnico</option>
+                  <option value="admin">Administrador</option>
+                </Select>
+              </div>
+
               <Button 
                 type="submit" 
-                className="bg-emerald-600 text-white hover:bg-emerald-500"
+                className="w-full bg-linear-to-r from-purple-600 to-purple-700 text-white hover:from-purple-500 hover:to-purple-600 flex items-center justify-center gap-2"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Registrando..." : "Registrar"}
+                {isSubmitting ? "Criando..." : <>
+                  Criar Conta
+                  <ArrowRight size={18} />
+                </>}
               </Button>
+
+              <p className="text-center text-sm text-slate-400 mt-4">
+                Já tem conta? <span onClick={() => setAuthModo("login")} className="text-purple-400 hover:text-purple-300 cursor-pointer font-semibold">Faça login aqui</span>
+              </p>
             </form>
           )}
-        </Card>
-
-        {/* Info */}
-        <div className="rounded-2xl border border-white/40 bg-white/80 p-5 shadow-sm backdrop-blur">
-          <h2 className="text-lg font-semibold mb-3">Credenciais de Teste</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="font-medium text-zinc-900">Admin</p>
-              <p className="text-zinc-600">admin@example.com</p>
-              <p className="text-zinc-600">senha123</p>
-            </div>
-            <div>
-              <p className="font-medium text-zinc-900">Técnico</p>
-              <p className="text-zinc-600">tecnico@example.com</p>
-              <p className="text-zinc-600">senha123</p>
-            </div>
-            <div>
-              <p className="font-medium text-zinc-900">Cliente</p>
-              <p className="text-zinc-600">cliente@example.com</p>
-              <p className="text-zinc-600">senha123</p>
-            </div>
-          </div>
+          
         </div>
       </div>
     </main>
   );
 }
+

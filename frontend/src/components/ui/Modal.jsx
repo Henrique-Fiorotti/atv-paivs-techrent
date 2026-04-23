@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { X } from "lucide-react";
 
 export function Modal({ isOpen, onClose, title, children, size = "md" }) {
   useEffect(() => {
@@ -33,28 +34,28 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }) {
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/50 transition-opacity duration-200"
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
         onClick={onClose}
       />
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className={`w-full ${sizeClasses[size]} bg-white rounded-lg shadow-lg border border-zinc-200 animate-in fade-in zoom-in-95 duration-200`}
+          className={`w-full ${sizeClasses[size]} bg-linear-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl border border-slate-700/50 backdrop-blur animate-in fade-in zoom-in-95 duration-300`}
           onClick={(e) => e.stopPropagation()}
         >
           {title && (
-            <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
-              <h2 className="text-lg font-semibold text-zinc-900">{title}</h2>
+            <div className="flex items-center justify-between border-b border-slate-700/30 px-6 py-4">
+              <h2 className="text-lg font-bold bg-linear-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">{title}</h2>
               <button
                 onClick={onClose}
-                className="inline-flex items-center justify-center rounded-md hover:bg-zinc-100 p-1 transition-colors"
+                className="inline-flex items-center justify-center rounded-lg hover:bg-slate-700/50 p-1 transition-colors text-slate-400 hover:text-white"
               >
-                ✕
+                <X size={20} />
               </button>
             </div>
           )}
 
-          <div className="px-6 py-4">{children}</div>
+          <div className="px-6 py-5">{children}</div>
         </div>
       </div>
     </>
@@ -99,31 +100,31 @@ export function ModalWithFooter({
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/50 transition-opacity duration-200"
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
         onClick={onClose}
       />
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className={`w-full ${sizeClasses[size]} bg-white rounded-lg shadow-lg border border-zinc-200 animate-in fade-in zoom-in-95 duration-200 flex flex-col`}
+          className={`w-full ${sizeClasses[size]} bg-linear-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl border border-slate-700/50 backdrop-blur animate-in fade-in zoom-in-95 duration-300 flex flex-col`}
           onClick={(e) => e.stopPropagation()}
         >
           {title && (
-            <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
-              <h2 className="text-lg font-semibold text-zinc-900">{title}</h2>
+            <div className="flex items-center justify-between border-b border-slate-700/30 px-6 py-4">
+              <h2 className="text-lg font-bold bg-linear-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">{title}</h2>
               <button
                 onClick={onClose}
-                className="inline-flex items-center justify-center rounded-md hover:bg-zinc-100 p-1 transition-colors"
+                className="inline-flex items-center justify-center rounded-lg hover:bg-slate-700/50 p-1 transition-colors text-slate-400 hover:text-white"
               >
-                ✕
+                <X size={20} />
               </button>
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+          <div className="px-6 py-5 flex-1">{children}</div>
 
           {footer && (
-            <div className="border-t border-zinc-200 px-6 py-4 flex justify-end gap-3">
+            <div className="border-t border-slate-700/30 px-6 py-4 flex justify-end gap-3">
               {footer}
             </div>
           )}

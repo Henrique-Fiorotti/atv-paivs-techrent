@@ -13,6 +13,7 @@ import { Button, Input } from "@/components/ui/Form";
 import { ModalWithFooter } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { FormField } from "@/components/ui/FormField";
+import { Cpu, Plus, CheckCircle, AlertCircle, Clock } from "lucide-react";
 
 export default function EquipamentosPage() {
   const { user } = useAuth();
@@ -136,28 +137,63 @@ export default function EquipamentosPage() {
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-zinc-600">Carregando equipamentos...</p>
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-slate-700 border-t-blue-500 mx-auto mb-4"></div>
+          <p className="text-slate-400 font-medium">Carregando equipamentos...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title="Gerenciamento de Equipamentos"
         description="Crie e gerencie o inventário de equipamentos"
-        action={<Button onClick={() => setModalOpen(true)}>+ Novo Equipamento</Button>}
+        action={
+          <Button onClick={() => setModalOpen(true)} className="flex items-center gap-2">
+            <Plus size={18} /> Novo Equipamento
+          </Button>
+        }
       />
 
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card variant="subtle" className="text-center">
+          <p className="text-sm text-slate-400 font-medium">Total</p>
+          <p className="text-3xl font-bold text-white mt-2">{equipamentos.length}</p>
+        </Card>
+        <Card variant="subtle" className="text-center">
+          <p className="text-sm text-emerald-300 font-medium">Operacionais</p>
+          <p className="text-3xl font-bold text-emerald-300 mt-2">
+            {equipamentos.filter((e) => e.status === "operacional").length}
+          </p>
+        </Card>
+        <Card variant="subtle" className="text-center">
+          <p className="text-sm text-amber-300 font-medium">Em Manutenção</p>
+          <p className="text-3xl font-bold text-amber-300 mt-2">
+            {equipamentos.filter((e) => e.status === "em_manutencao").length}
+          </p>
+        </Card>
+        <Card variant="subtle" className="text-center">
+          <p className="text-sm text-red-300 font-medium">Desativados</p>
+          <p className="text-3xl font-bold text-red-300 mt-2">
+            {equipamentos.filter((e) => e.status === "desativado").length}
+          </p>
+        </Card>
+      </div>
+
       {/* Filtros */}
-      <Card>
+      <Card variant="elevated">
         <CardHeader>
-          <CardTitle>Filtros</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Cpu size={24} className="text-blue-400" />
+            Filtros
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <FormField
               control={controlFiltros}
               name="busca"
@@ -187,7 +223,6 @@ export default function EquipamentosPage() {
             size="sm"
             variant="outline"
             onClick={() => resetFiltros()}
-            className="mt-4"
           >
             Limpar Filtros
           </Button>
@@ -195,43 +230,48 @@ export default function EquipamentosPage() {
       </Card>
 
       {/* Tabela */}
-      <Card>
-        <CardContent>
+      <Card variant="elevated">
+        <CardContent className="p-0">
           {equipamentosFiltrados.length === 0 ? (
-            <EmptyState
-              title="Nenhum equipamento encontrado"
-              description={
-                equipamentos.length === 0
+            <div className="p-12 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-700/50 mb-4">
+                <Cpu size={32} className="text-slate-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">Nenhum equipamento encontrado</h3>
+              <p className="text-slate-400 mb-6">
+                {equipamentos.length === 0
                   ? "Comece criando um novo equipamento"
-                  : "Nenhum equipamento corresponde aos filtros"
-              }
-              action={equipamentos.length === 0 && <Button onClick={() => setModalOpen(true)}>Criar Equipamento</Button>}
-            />
+                  : "Nenhum equipamento corresponde aos filtros"}
+              </p>
+              {equipamentos.length === 0 && (
+                <Button onClick={() => setModalOpen(true)}>Criar Equipamento</Button>
+              )}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-200 bg-zinc-50">
-                    <th className="text-left px-4 py-3 font-semibold">Nome</th>
-                    <th className="text-left px-4 py-3 font-semibold">Categoria</th>
-                    <th className="text-left px-4 py-3 font-semibold">Patrimônio</th>
-                    <th className="text-left px-4 py-3 font-semibold">Status</th>
-                    <th className="text-left px-4 py-3 font-semibold">Ações</th>
+                  <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                    <th className="text-left px-4 py-4 font-semibold text-slate-300">Nome</th>
+                    <th className="text-left px-4 py-4 font-semibold text-slate-300">Categoria</th>
+                    <th className="text-left px-4 py-4 font-semibold text-slate-300">Patrimônio</th>
+                    <th className="text-left px-4 py-4 font-semibold text-slate-300">Status</th>
+                    <th className="text-left px-4 py-4 font-semibold text-slate-300">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {equipamentosFiltrados.map((equip) => (
-                    <tr key={equip.id} className="border-b border-zinc-200 hover:bg-zinc-50">
-                      <td className="px-4 py-3 font-medium">{equip.nome}</td>
-                      <td className="px-4 py-3">{equip.categoria}</td>
-                      <td className="px-4 py-3 text-xs font-mono">{equip.patrimonio}</td>
-                      <td className="px-4 py-3">
+                    <tr key={equip.id} className="border-b border-slate-700/30 hover:bg-slate-800/30 transition-colors">
+                      <td className="px-4 py-4 font-medium text-slate-100">{equip.nome}</td>
+                      <td className="px-4 py-4 text-slate-300">{equip.categoria}</td>
+                      <td className="px-4 py-4 text-xs font-mono text-slate-400">{equip.patrimonio}</td>
+                      <td className="px-4 py-4">
                         <Badge status={equip.status}>{equip.status}</Badge>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <button
                           onClick={() => handleDeletarEquipamento(equip.id)}
-                          className="text-red-600 hover:text-red-700 font-medium text-sm"
+                          className="text-red-400 hover:text-red-300 font-medium text-sm transition-colors"
                         >
                           Deletar
                         </button>

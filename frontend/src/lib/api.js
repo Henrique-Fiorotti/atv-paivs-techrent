@@ -1,5 +1,19 @@
 // Cliente HTTP centralizado para TechRent
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+function getApiBaseUrl() {
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const fallbackBaseUrl = "http://localhost:8080/api";
+
+  if (!configuredBaseUrl) {
+    return fallbackBaseUrl;
+  }
+
+  const normalizedBaseUrl = configuredBaseUrl.replace(/\/+$/, "");
+  return normalizedBaseUrl.endsWith("/api")
+    ? normalizedBaseUrl
+    : `${normalizedBaseUrl}/api`;
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 async function request(path, options = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;

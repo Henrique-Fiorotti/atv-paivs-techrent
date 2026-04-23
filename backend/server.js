@@ -5,11 +5,17 @@ const apiRoutes = require('./routes');
 
 const app = express();
 
+app.use(express.json());
+
 app.use((req, res, next) => {
-  const allowedOrigin = process.env.CORS_ORIGIN || '*';
+  const allowedOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+
   res.header('Access-Control-Allow-Origin', allowedOrigin);
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+  );
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
@@ -17,8 +23,6 @@ app.use((req, res, next) => {
 
   return next();
 });
-
-app.use(express.json());
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', servico: 'TechRent API' });
@@ -37,9 +41,15 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 8080;
 
 function startServer() {
-  return app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Servidor rodando em http://localhost:${PORT}`);
   });
+
+  server.on('error', (error) => {
+    console.error('Erro no servidor:', error.message);
+  });
+
+  return server;
 }
 
 if (require.main === module) {

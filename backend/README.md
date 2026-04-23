@@ -33,8 +33,7 @@ A API sobe em `http://localhost:8080` por padrão.
 ## Observação para XAMPP (Windows)
 
 - Você **não precisa** do MySQL Tools do VSCode para funcionar.
-- Com o MySQL do XAMPP iniciado, a API tenta criar o banco `DB_NAME` automaticamente se ele não existir.
-- Ainda assim, as **tabelas e views** precisam ser criadas com `bd/schema.sql` e `bd/views.sql`.
+- Com o MySQL do XAMPP iniciado, crie o banco e a estrutura com `bd/schema.sql` e `bd/views.sql` antes de subir a API.
 
 
 ## Comandos rápidos (Windows + XAMPP)

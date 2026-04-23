@@ -1,16 +1,9 @@
-// =============================================
-// ROTAS DE AUTENTICAÇÃO
-// =============================================
-// Rotas públicas — não exigem token JWT.
-
 const express = require('express');
+const AuthController = require('../controllers/authController');
+
 const router = express.Router();
-const authController = require('../controllers/authController');
 
-// POST /auth/registro - cria uma conta
-router.post('/registro', authController.registro);
-
-// POST /auth/login - autentica e retorna o token JWT
-router.post('/login', authController.login);
+router.post('/registro', AuthController.register);
+router.post('/login', AuthController.login);
 
 module.exports = router;
